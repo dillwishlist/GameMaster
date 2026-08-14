@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same branch supersedes the run in flight.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      # package.json declares engines.node >= 20, so prove both live majors.
+      matrix:
+        node: ['20', '22']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck (client and server projects)
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # Proves the client bundle compiles. The smoke test below does not need
+      # it — the server serves a 503 fallback when dist/client is absent and
+      # the smoke test only touches /api/* and sockets — but building first
+      # mirrors what `npm start` actually does on the night.
+      - name: Build client bundle
+        run: npm run build
+
+      # Boots the real server on port 4321 with a throwaway data dir and drives
+      # a round over real sockets: host view, display view, undo, manual score
+      # override, and the display-cannot-score boundary.
+      - name: Smoke test (real server, real sockets)
+        run: npm run smoke

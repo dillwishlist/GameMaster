@@ -42,9 +42,11 @@ Then work down [`docs/RUNDAY.md`](docs/RUNDAY.md), which is not optional.
 |---|---|
 | `npm start` | Build the client and serve everything on port 4000 |
 | `npm run dev` | Server plus Vite dev server with hot reload |
+| `npm run check` | Everything below, in one go — run this before pushing |
 | `npm test` | Unit tests: reducer, projections, content validation |
 | `npm run smoke` | Boot the real server and play a round through real sockets |
-| `npm run typecheck` | |
+| `npm run typecheck` | Type-check the client and the server separately |
+| `npm run build` | Build the client bundle into `dist/client` |
 
 Environment: `GM_PORT` (4000), `GM_CONTENT` (a specific content file),
 `GM_CONTENT_DIR` (`./content`), `GM_DATA_DIR` (`./data`), `GM_PASSPHRASE`

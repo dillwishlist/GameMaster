@@ -17,7 +17,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { io } from 'socket.io-client';
 
-const PORT = 4321;
+// Overridable so a busy port doesn't block a run, and so two smoke tests can
+// run side by side on one machine.
+const PORT = Number(process.env.GM_SMOKE_PORT ?? 4321);
 const dataDir = mkdtempSync(path.join(tmpdir(), 'gamemaster-smoke-'));
 const failures = [];
 
@@ -136,6 +138,9 @@ try {
 }
 
 if (failures.length) {
+  // Without this the server's own startup output is collected and thrown away,
+  // so a boot failure in CI reads as "never became healthy" with no cause.
+  if (serverOutput.length) console.error(`\n--- server output ---\n${serverOutput.join('')}`);
   console.error(`\nsmoke test FAILED: ${failures.length} check(s)\n`);
   process.exit(1);
 }
