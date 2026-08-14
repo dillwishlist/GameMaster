@@ -35,7 +35,20 @@ export interface EditorDeps {
 }
 
 /** Ops that move questions around, as opposed to rewording them. */
-const STRUCTURAL: EditOp['op'][] = ['addItem', 'removeItem', 'moveItem', 'removeRound'];
+const STRUCTURAL: EditOp['op'][] = [
+  'addItem',
+  'removeItem',
+  'moveItem',
+  'removeRound',
+  // A board addresses squares by column and row, so adding or removing either
+  // shifts the same way an item index does.
+  'addCategory',
+  'removeCategory',
+  'moveCategory',
+  'addClue',
+  'removeClue',
+  'moveClue',
+];
 
 const MAX_ASSET_BYTES = 10 * 1024 * 1024;
 

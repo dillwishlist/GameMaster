@@ -10,6 +10,13 @@ export interface Connection<T> {
   error: string | null;
   dispatch: (event: GameEventInput) => void;
   command: (name: 'undo' | 'redo' | 'resetSession') => void;
+  /**
+   * Escape hatch for socket messages that are not gameplay — the editor's
+   * preview, which deliberately writes no event. Without it a caller has to
+   * open a second socket, and two sockets means two host connections and a
+   * lifecycle where whichever unmounts first can close the other's link.
+   */
+  send: (name: string, ...args: unknown[]) => void;
 }
 
 /**
@@ -115,7 +122,9 @@ export function useConnection<T>(role: ClientRole, channel: string, passphrase?:
 
   const command = useCallback((name: 'undo' | 'redo' | 'resetSession') => enqueue(name, []), [enqueue]);
 
-  return { state, status, error, dispatch, command };
+  const send = useCallback((name: string, ...args: unknown[]) => enqueue(name, args), [enqueue]);
+
+  return { state, status, error, dispatch, command, send };
 }
 
 /**

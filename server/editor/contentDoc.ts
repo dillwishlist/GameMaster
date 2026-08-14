@@ -52,7 +52,19 @@ export type EditOp =
   | { op: 'setItemField'; roundId: string; index: number; path: string[]; value: unknown }
   | { op: 'addItem'; roundId: string; index: number; item: Record<string, unknown> }
   | { op: 'removeItem'; roundId: string; index: number }
-  | { op: 'moveItem'; roundId: string; from: number; to: number };
+  | { op: 'moveItem'; roundId: string; from: number; to: number }
+  /* Boards address a clue by column and row rather than by a flat index. Same
+     node-level splices, so a comment written beside a clue survives an edit to
+     the clue next to it — the guarantee should not have an exception just
+     because one round type is two-dimensional. */
+  | { op: 'setCategoryName'; roundId: string; category: number; value: string }
+  | { op: 'addCategory'; roundId: string; index: number; category: Record<string, unknown> }
+  | { op: 'removeCategory'; roundId: string; index: number }
+  | { op: 'moveCategory'; roundId: string; from: number; to: number }
+  | { op: 'setClueField'; roundId: string; category: number; clue: number; path: string[]; value: unknown }
+  | { op: 'addClue'; roundId: string; category: number; index: number; clue: Record<string, unknown> }
+  | { op: 'removeClue'; roundId: string; category: number; index: number }
+  | { op: 'moveClue'; roundId: string; category: number; from: number; to: number };
 
 export function loadContentDoc(file: string): ContentDoc {
   const text = readFileSync(file, 'utf8');
@@ -159,6 +171,64 @@ function applyOp(doc: YAML.Document, op: EditOp): void {
       return;
     }
 
+    case 'setCategoryName':
+      doc.setIn([...categoryPath(doc, op.roundId, op.category), 'name'], op.value);
+      return;
+
+    case 'addCategory': {
+      const categories = seqAt(doc, ['rounds', roundIndex(doc, op.roundId), 'categories']);
+      categories.items.splice(clamp(op.index, categories.items.length), 0, doc.createNode(op.category));
+      return;
+    }
+
+    case 'removeCategory': {
+      const categories = seqAt(doc, ['rounds', roundIndex(doc, op.roundId), 'categories']);
+      requireIndex(op.index, categories.items.length, 'category');
+      categories.items.splice(op.index, 1);
+      return;
+    }
+
+    case 'moveCategory': {
+      const categories = seqAt(doc, ['rounds', roundIndex(doc, op.roundId), 'categories']);
+      requireIndex(op.from, categories.items.length, 'category');
+      const [node] = categories.items.splice(op.from, 1);
+      categories.items.splice(clamp(op.to, categories.items.length), 0, node);
+      return;
+    }
+
+    case 'setClueField': {
+      const path = [...cluesPath(doc, op.roundId, op.category), op.clue, ...op.path];
+      if (op.value === undefined || op.value === '') {
+        doc.deleteIn(path);
+        pruneEmptyParent(doc, path);
+      } else {
+        ensurePath(doc, path.slice(0, -1));
+        doc.setIn(path, toNode(doc, op.value));
+      }
+      return;
+    }
+
+    case 'addClue': {
+      const clues = seqAt(doc, cluesPath(doc, op.roundId, op.category));
+      clues.items.splice(clamp(op.index, clues.items.length), 0, doc.createNode(op.clue));
+      return;
+    }
+
+    case 'removeClue': {
+      const clues = seqAt(doc, cluesPath(doc, op.roundId, op.category));
+      requireIndex(op.index, clues.items.length, 'clue');
+      clues.items.splice(op.index, 1);
+      return;
+    }
+
+    case 'moveClue': {
+      const clues = seqAt(doc, cluesPath(doc, op.roundId, op.category));
+      requireIndex(op.from, clues.items.length, 'clue');
+      const [node] = clues.items.splice(op.from, 1);
+      clues.items.splice(clamp(op.to, clues.items.length), 0, node);
+      return;
+    }
+
     default: {
       const unknown = op as { op: string };
       throw new EditError(`Unknown edit operation "${unknown.op}"`);
@@ -176,6 +246,22 @@ function roundIndex(doc: YAML.Document, roundId: string): number {
   });
   if (index < 0) throw new EditError(`No round with id "${roundId}"`);
   return index;
+}
+
+function categoryPath(doc: YAML.Document, roundId: string, category: number): (string | number)[] {
+  const categories = seqAt(doc, ['rounds', roundIndex(doc, roundId), 'categories']);
+  requireIndex(category, categories.items.length, 'category');
+  return ['rounds', roundIndex(doc, roundId), 'categories', category];
+}
+
+function cluesPath(doc: YAML.Document, roundId: string, category: number): (string | number)[] {
+  return [...categoryPath(doc, roundId, category), 'clues'];
+}
+
+function requireIndex(index: number, length: number, what: string): void {
+  if (!Number.isInteger(index) || index < 0 || index >= length) {
+    throw new EditError(`No ${what} at index ${index}`);
+  }
 }
 
 function itemsOf(doc: YAML.Document, roundId: string): YAML.YAMLSeq {

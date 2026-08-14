@@ -97,6 +97,92 @@ rounds:
   });
 });
 
+describe('board operations', () => {
+  const board = `title: Board Game
+rounds:
+  - id: family-board
+    type: board
+    title: 'Family Jeopardy'
+    categories:
+      - name: Holidays
+        clues:
+          - value: 100
+            prompt: 'The caravan site'
+            answer: 'Sandy Balls'
+          # Dad tells this story every year. Do not cut it.
+          - value: 200
+            prompt: 'The gatepost'
+            answer: '1998'
+      - name: 'Who Said It?'
+        clues:
+          - value: 100
+            prompt: 'Who said it'
+            answer: 'Mum'
+`;
+
+  it('edits one clue without disturbing the comment beside another', () => {
+    const file = scratch(board);
+    const after = edited(file, [
+      { op: 'setClueField', roundId: 'family-board', category: 0, clue: 0, path: ['answer'], value: 'Sandy Balls, really' },
+    ]);
+
+    // The whole point of node-level ops: a board is two-dimensional, but the
+    // comment guarantee is not allowed an exception because of that.
+    expect(after).toContain('# Dad tells this story every year. Do not cut it.');
+    expect(YAML.parse(after).rounds[0].categories[0].clues[0].answer).toBe('Sandy Balls, really');
+  });
+
+  it('moves a clue and takes its comment with it', () => {
+    const file = scratch(board);
+    const after = edited(file, [{ op: 'moveClue', roundId: 'family-board', category: 0, from: 1, to: 0 }]);
+    const lines = after.split('\n');
+    expect(lines.findIndex((l) => l.includes('Dad tells this story'))).toBeLessThan(
+      lines.findIndex((l) => l.includes('gatepost')),
+    );
+    expect(YAML.parse(after).rounds[0].categories[0].clues.map((c: { value: number }) => c.value)).toEqual([200, 100]);
+  });
+
+  it('adds and removes clues and categories', () => {
+    const file = scratch(board);
+    edited(file, [
+      { op: 'addClue', roundId: 'family-board', category: 1, index: 1, clue: { value: 200, prompt: 'New', answer: 'A' } },
+      { op: 'addCategory', roundId: 'family-board', index: 2, category: { name: 'Pets', clues: [{ value: 100, prompt: 'p' }] } },
+      { op: 'setCategoryName', roundId: 'family-board', category: 0, value: 'Holidays Abroad' },
+    ]);
+    const parsed = YAML.parse(readFileSync(file, 'utf8'));
+    expect(parsed.rounds[0].categories.map((c: { name: string }) => c.name)).toEqual([
+      'Holidays Abroad',
+      'Who Said It?',
+      'Pets',
+    ]);
+    expect(parsed.rounds[0].categories[1].clues).toHaveLength(2);
+
+    edited(file, [{ op: 'removeCategory', roundId: 'family-board', index: 2 }]);
+    expect(YAML.parse(readFileSync(file, 'utf8')).rounds[0].categories).toHaveLength(2);
+  });
+
+  it('refuses a clue or category that is not there', () => {
+    const file = scratch(board);
+    expect(() => edited(file, [{ op: 'removeClue', roundId: 'family-board', category: 0, index: 9 }])).toThrow(EditError);
+    expect(() => edited(file, [{ op: 'removeCategory', roundId: 'family-board', index: 9 }])).toThrow(EditError);
+  });
+
+  it('keeps the real sample board loadable after an edit', () => {
+    const file = scratch(readFileSync(REAL_BOARD, 'utf8'));
+    edited(file, [
+      { op: 'setClueField', roundId: 'family-board', category: 0, clue: 0, path: ['value'], value: 150 },
+      { op: 'setClueField', roundId: 'family-board', category: 0, clue: 1, path: ['wager'], value: true },
+    ]);
+    const content = loadContent(file);
+    expect(content.brokenRounds).toEqual({});
+    const cfg = content.rounds.find((r) => r.id === 'family-board')?.config as {
+      categories: { clues: { value: number; wager?: boolean }[] }[];
+    };
+    expect(cfg.categories[0].clues[0].value).toBe(150);
+    expect(cfg.categories[0].clues[1].wager).toBe(true);
+  });
+});
+
 describe('editing operations', () => {
   const base = `title: Test Game
 rounds:
