@@ -1,0 +1,123 @@
+# The sample game: a 40th wedding anniversary brunch.
+#
+# Edit this file while the server is running — it hot-reloads, and a syntax
+# error shows up on the host view instead of taking the game down.
+#
+# Every "party game" you can think of is a `manual` round plus a good prompt.
+# Charades, pin-the-tail, musical chairs, a sing-along, a relay across the
+# garden: the host watches, decides who won, and taps a face. Do not go looking
+# for a round type for those.
+
+title: '40th Anniversary Games'
+
+# Seeded on a fresh session so `restrictTo` ids below resolve, and so the host
+# isn't typing names into an iPad while people are arriving. The host can edit,
+# add, remove and re-face all of these on the Players screen.
+entrants:
+  - id: mum-dad
+    displayName: 'Mum & Dad'
+    avatar: /content/avatars/avatar-a.svg
+    members: [{ name: 'David' }, { name: 'Jennifer' }]
+  - id: the-swans
+    displayName: 'Team Swan'
+    avatar: /content/avatars/avatar-b.svg
+  - id: the-outlaws
+    displayName: 'The Out-laws'
+    avatar: /content/avatars/avatar-c.svg
+  - id: lucy
+    displayName: 'Lucy'
+    avatar: /content/avatars/avatar-d.svg
+  - id: the-toddlers
+    displayName: 'The Toddlers'
+    avatar: /content/avatars/avatar-e.svg
+
+rounds:
+  - id: welcome
+    type: manual
+    title: 'Welcome'
+    items:
+      - prompt: '40 years. Let’s see who was paying attention.'
+        note: 'Hold here while people find a seat. Reveal when the room is quiet.'
+        answer: 'First round: baby photos.'
+
+  - id: baby-photos
+    type: manual
+    title: 'Whose Baby Is This?'
+    defaultPoints: 1
+    items:
+      - prompt: 'Whose baby photo?'
+        media: { image: assets/baby-01.svg }
+        answer: 'David'
+      - prompt: 'Whose baby photo?'
+        media: { image: assets/baby-02.svg }
+        answer: 'Jennifer'
+      - prompt: 'Whose baby photo?'
+        media: { image: assets/baby-03.svg }
+        answer: 'Aunt Ruth'
+      - prompt: 'Whose baby photo?'
+        media: { image: assets/baby-04.svg }
+        answer: 'Grandad — yes, really'
+
+  - id: kids-round
+    type: manual
+    title: 'Just For Lucy'
+    # Only Lucy can score here. Everyone else's tile greys out on the host view,
+    # which is what stops a helpful adult from shouting the answer for a point.
+    restrictTo: [lucy]
+    defaultPoints: 1
+    items:
+      - prompt: 'How many grandchildren?'
+        # A cue plays when the display *lands on* an item whose audio differs
+        # from the last one played — not when you reveal, and not when you award
+        # a point. So this chime is doing one job: turning a room full of
+        # talking adults towards Lucy as her round starts. Run
+        # `node scripts/make-sounds.mjs` if content/assets/*.wav are missing.
+        media: { audio: assets/cue-correct.wav }
+        answer: 'Three — four in November!'
+      - prompt: 'What colour is Grandad’s car?'
+        answer: 'Green'
+      - prompt: 'Who is the oldest person in this room?'
+        answer: 'Great-Grandma Iris, and she will tell you so'
+
+  - id: how-well
+    type: multipleChoice
+    title: 'How Well Do You Know Them?'
+    defaultPoints: 2
+    items:
+      - prompt: 'Where did David and Jennifer meet?'
+        options: ['A bus stop', 'A wedding', 'A chemistry lab', 'A queue for chips']
+        correct: C
+        answer: 'Second-year practical, 1983'
+      - prompt: 'What was the first song at their wedding?'
+        options: ['Careless Whisper', 'True', 'Every Breath You Take', 'Wake Me Up Before You Go-Go']
+        correct: B
+      - prompt: 'How many houses have they lived in together?'
+        options: ['Three', 'Five', 'Seven', 'Nine']
+        correct: C
+        answer: 'Seven, and Dad has a story about each one'
+
+  - id: charades
+    type: manual
+    title: 'Charades'
+    defaultPoints: 1
+    # An optional per-item countdown the host starts by hand. Nothing expires
+    # on its own — the clock is theatre, the host still decides.
+    timerSeconds: 45
+    items:
+      - prompt: 'Act it out: THE WEDDING PHOTO'
+        note: 'Give this one to whoever gets the room laughing.'
+      - prompt: 'Act it out: DAD’S DRIVING'
+      - prompt: 'Act it out: MUM ON THE PHONE'
+
+  - id: finale
+    type: manual
+    title: 'Last Points'
+    defaultPoints: 5
+    items:
+      - prompt: 'Best guess: how many cups of tea has Mum made in 40 years?'
+        answer: 'Nobody knows. Five points to the funniest number.'
+      - prompt: 'Raise a glass.'
+        # The one cue that has to be here. Two in a whole game is the right
+        # number — a chime on every question is exhausting in a small room.
+        media: { image: assets/wedding-1985.svg, audio: assets/cue-fanfare.wav }
+        answer: 'To David and Jennifer.'

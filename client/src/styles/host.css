@@ -1,0 +1,443 @@
+/**
+ * Host layout. Fixed rows: chrome at the top, prompt in the middle, faces and
+ * transport pinned to the bottom where the thumbs are.
+ *
+ * The same layout has to survive both an iPad in landscape and a window on the
+ * laptop — that is the wifi-down fallback, so the grid is fluid rather than
+ * tuned to one viewport.
+ */
+
+/**
+ * Flex rather than fixed grid rows: the error banners appear and disappear with
+ * the state of the content file, and with `grid-template-rows` the flexible row
+ * would land on whichever child happened to be third that render.
+ */
+.host {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: max(10px, env(safe-area-inset-top)) 12px max(10px, env(safe-area-inset-bottom));
+}
+
+.host > * {
+  flex: 0 0 auto;
+}
+
+.host-offline {
+  /* A red hairline is enough: the host should notice, not panic. */
+  box-shadow: inset 0 0 0 3px var(--danger);
+}
+
+.host-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.round-picker {
+  flex: 1;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.host-progress {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.host-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.host-dot.bad {
+  background: var(--danger);
+}
+
+.host-dot-label {
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.host-banner {
+  background: #3a1f1c;
+  border: 1px solid var(--danger);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.host-banner.subtle {
+  background: #33291a;
+  border-color: #8a6d3b;
+}
+
+.host-banner pre {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+
+.host-main {
+  /* The one child that takes the slack, so the tiles and transport stay put. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  /* `safe` matters: plain `center` overflows in both directions, so a long
+     prompt spills above the scroll origin and the first line becomes
+     permanently unreachable — the host cannot read the question they are
+     holding the room to. `safe center` falls back to start when it overflows. */
+  justify-content: safe center;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+/* Big enough to read aloud at arm's length without leaning in. */
+.host-prompt {
+  margin: 0;
+  font-size: clamp(24px, 3.2vw, 38px);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.host-prompt.dim {
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.host-answer {
+  margin: 0;
+  font-size: clamp(20px, 2.6vw, 30px);
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.host-answer-label {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.host-answer.shown {
+  /* Already on the TV — dim it so the host's eye goes to the tiles instead. */
+  opacity: 0.55;
+}
+
+.host-note {
+  margin: 0;
+  color: var(--dim);
+  font-style: italic;
+}
+
+.host-options {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 18px;
+}
+
+.host-options .correct {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.host-thumb {
+  max-height: 26vh;
+  max-width: 100%;
+  border-radius: 12px;
+  object-fit: contain;
+}
+
+/* Tiles -------------------------------------------------------------------- */
+
+.host-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(clamp(96px, 12vw, 150px), 1fr));
+  gap: 10px;
+  align-content: end;
+}
+
+.tile {
+  position: relative;
+}
+
+.tile-main {
+  width: 100%;
+  /* 88pt minimum touch target, and in practice much bigger than that. */
+  min-height: 88px;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding: 10px 8px 12px;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.tile-main:active {
+  background: var(--panel-2);
+  transform: scale(0.97);
+}
+
+.tile-avatar {
+  max-width: 96px;
+}
+
+.tile-name {
+  font-weight: 700;
+  font-size: 15px;
+  text-align: center;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.tile-score {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 22px;
+  background: var(--panel-2);
+  border: 2px solid var(--line);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.tile-awarded {
+  position: absolute;
+  bottom: 6px;
+  left: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ok);
+}
+
+.tile-index {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.tile-disabled .tile-main {
+  opacity: 0.3;
+}
+
+.tile-deduct .tile-main {
+  border-color: var(--danger);
+}
+
+.host-empty {
+  grid-column: 1 / -1;
+}
+
+/* Transport ---------------------------------------------------------------- */
+
+.host-transport {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.btn-undo {
+  background: #4a3a12;
+  border-color: #7a6220;
+}
+
+@media (max-width: 720px) {
+  .host-transport {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Keypad ------------------------------------------------------------------- */
+
+.keypad header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+  font-size: 20px;
+}
+
+.keypad-value {
+  font-size: 34px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.keypad-nudge,
+.keypad-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.keypad-actions {
+  grid-template-columns: 1fr 1fr;
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+.keypad-nudge button,
+.keypad-grid button {
+  min-height: 56px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.keypad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+/* Setup -------------------------------------------------------------------- */
+
+.setup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.setup-header h2 {
+  margin: 0;
+}
+
+.setup-add {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.setup-add input {
+  flex: 1;
+}
+
+.setup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.setup-list li {
+  display: grid;
+  grid-template-columns: 56px 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  background: var(--panel-2);
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+
+.setup-list li.inactive {
+  opacity: 0.45;
+}
+
+.setup-face {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.setup-meta {
+  display: grid;
+}
+
+.setup-meta span {
+  color: var(--dim);
+  font-size: 13px;
+}
+
+.setup-avatars {
+  margin-top: 16px;
+}
+
+.avatar-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.avatar-choices button {
+  background: none;
+  border: 3px solid transparent;
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+  aspect-ratio: 1;
+}
+
+.avatar-choices button.chosen {
+  border-color: var(--accent);
+}
+
+.avatar-choices img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.setup-footer {
+  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+/* Timer -------------------------------------------------------------------- */
+
+.host-timer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.host-timer .countdown {
+  /* The display sizes its countdown in vh for a TV across a room; on the host
+     it only has to be glanceable from arm's length. */
+  width: 100%;
+  height: 34px;
+}
+
+.host-timer .countdown-value {
+  font-size: 16px;
+}

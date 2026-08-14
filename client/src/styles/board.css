@@ -1,0 +1,303 @@
+/**
+ * The `board` round, both ends of it. Host rules are prefixed `.board-`, TV
+ * rules `.board-tv-`, so the one file can be imported by both views without
+ * either inheriting the other's sizing — which is the whole difficulty here:
+ * the same grid has to be a tap target held at arm's length and a scoreboard
+ * read from four metres away.
+ *
+ * TV sizes follow display.css: vh-based clamps, nothing under ~48px at 1080p
+ * (1vh = 10.8px there, so a 4.5vh floor is the smallest anything gets), flat
+ * high-contrast fills.
+ */
+
+/* Host --------------------------------------------------------------------- */
+
+/**
+ * `.host-main` centres its children and aligns them to the start, which is
+ * right for a text prompt and wrong for a grid. Stretching here rather than
+ * changing the parent keeps every other round type's layout untouched.
+ */
+.board-host {
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.board-head,
+.board-body {
+  display: grid;
+  grid-template-columns: repeat(var(--board-cols), minmax(0, 1fr));
+  gap: 6px;
+}
+
+.board-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Auto rows rather than 1fr: on a laptop window the grid should keep its
+     minimum tap height and scroll, not squash to unhittable slivers. */
+  grid-auto-rows: minmax(88px, 1fr);
+  overflow: auto;
+}
+
+.board-cat {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 6px 4px;
+  font-size: clamp(12px, 1.4vw, 17px);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  color: var(--dim);
+  border-bottom: 2px solid var(--line);
+}
+
+.board-cell {
+  position: relative;
+  min-height: 56px;
+  font: inherit;
+  font-size: clamp(20px, 2.6vw, 34px);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.board-cell:active {
+  transform: scale(0.97);
+  background: var(--panel);
+}
+
+.board-cell.used {
+  background: transparent;
+  border-style: dashed;
+  color: var(--dim);
+  font-size: 20px;
+}
+
+.board-blank {
+  border: 0;
+}
+
+.board-reopen {
+  opacity: 0.55;
+}
+
+.board-wager-mark {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.board-hint {
+  margin: 0;
+  color: var(--dim);
+  font-size: 13px;
+}
+
+/* Host — one clue open ------------------------------------------------------ */
+
+.board-open {
+  gap: 10px;
+  justify-content: center;
+  overflow: auto;
+}
+
+.board-open-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 2px solid var(--line);
+  padding-bottom: 6px;
+}
+
+.board-open-cat {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dim);
+}
+
+.board-open-value {
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.board-open-value.wager {
+  color: var(--accent);
+}
+
+.board-open-wager-tag {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-left: 8px;
+}
+
+.board-wagers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.board-wagers-label {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+}
+
+.board-wager {
+  padding: 10px 14px;
+  min-height: 48px;
+  font-variant-numeric: tabular-nums;
+}
+
+.board-wager.chosen {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.board-open-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* TV — the grid ------------------------------------------------------------- */
+
+.board-tv {
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+}
+
+.board-tv-head,
+.board-tv-body {
+  display: grid;
+  grid-template-columns: repeat(var(--board-cols), minmax(0, 1fr));
+  gap: 0.8vh 0.6vw;
+}
+
+.board-tv-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-auto-rows: minmax(0, 1fr);
+}
+
+.board-tv-cat {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 0.8vh 0.4vw;
+  font-size: clamp(24px, 4.6vh, 60px);
+  font-weight: 800;
+  line-height: 1.05;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  background: var(--panel);
+  border-bottom: 4px solid var(--accent);
+  border-radius: 12px 12px 0 0;
+  /* A long category name shrinks the words, never the row. */
+  overflow: hidden;
+}
+
+.board-tv-cell {
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #1d3a6b;
+  border: 3px solid #2f7de6;
+  font-size: clamp(36px, 7vh, 96px);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #ffd45e;
+}
+
+/* Used squares go dark rather than vanishing: the shape of what is left is
+   half of what people are reading the board for. */
+.board-tv-cell.used {
+  background: transparent;
+  border-color: var(--line);
+  color: transparent;
+}
+
+/* TV — one clue open -------------------------------------------------------- */
+
+.board-tv-clue {
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5vh;
+  text-align: center;
+}
+
+.board-tv-clue-head {
+  display: flex;
+  align-items: baseline;
+  gap: 2vw;
+  font-size: clamp(24px, 4.6vh, 56px);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--dim);
+}
+
+.board-tv-clue-value {
+  color: #ffd45e;
+  font-variant-numeric: tabular-nums;
+}
+
+.board-tv-wager {
+  color: var(--accent);
+}
+
+.board-tv-prompt {
+  margin: 0;
+  font-size: clamp(40px, 7.5vh, 110px);
+  font-weight: 800;
+  line-height: 1.05;
+  max-width: 22ch;
+}
+
+.board-tv-prompt.with-image {
+  font-size: clamp(28px, 4.6vh, 56px);
+  max-width: 30ch;
+}
+
+.board-tv-response {
+  margin: 0;
+  font-size: clamp(36px, 6vh, 84px);
+  font-weight: 800;
+  color: #6ee7a8;
+  animation: pop 320ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-tv-response {
+    animation: none;
+  }
+}

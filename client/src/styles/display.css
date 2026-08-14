@@ -1,0 +1,305 @@
+/**
+ * TV styles. Sizes are set against a 1080p living-room set viewed from the far
+ * side of a room:
+ *   - nothing smaller than ~48px at 1080p (that is the leaderboard; prompts are
+ *     several times larger)
+ *   - 5% safe margin on every side for overscan
+ *   - flat high-contrast fills, no thin type, no subtle greys
+ *
+ * Check it on the actual television before the party. Laptop screens lie.
+ */
+
+.display {
+  height: 100%;
+  padding: 5vh 5vw;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 2vh;
+  background: radial-gradient(120% 100% at 50% 0%, #1b2030 0%, #0d0f15 70%);
+}
+
+/**
+ * Grid items default to `min-width: auto`, which lets a wide leaderboard push
+ * the whole layout past the 5% safe margin and off the edge of the TV. Every
+ * row here is allowed to be narrower than its content instead.
+ */
+.display > * {
+  min-width: 0;
+}
+
+.display-waiting {
+  place-content: center;
+  text-align: center;
+  font-size: 42px;
+}
+
+.display-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 4px solid var(--accent);
+  padding-bottom: 1vh;
+}
+
+.display-header h1 {
+  margin: 0;
+  font-size: clamp(32px, 4.4vh, 64px);
+  letter-spacing: -0.01em;
+}
+
+.display-progress {
+  font-size: clamp(24px, 3vh, 40px);
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.display-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5vh;
+  min-height: 0;
+  /* Never let a long prompt or a tall image push the leaderboard off the TV. */
+  overflow: hidden;
+  text-align: center;
+}
+
+.display-prompt {
+  margin: 0;
+  font-size: clamp(40px, 7.5vh, 110px);
+  font-weight: 800;
+  line-height: 1.05;
+  max-width: 22ch;
+}
+
+/* When there is a picture, the picture is the question — shrink the words. */
+.display-prompt.with-image {
+  font-size: clamp(28px, 4.2vh, 56px);
+  max-width: 30ch;
+}
+
+.display-image {
+  max-height: 100%;
+  min-height: 0;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 18px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+}
+
+.display-answer {
+  margin: 0;
+  font-size: clamp(36px, 6vh, 84px);
+  font-weight: 800;
+  color: #6ee7a8;
+  animation: pop 320ms ease-out;
+}
+
+.display-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.6vh 2vw;
+  width: 100%;
+  font-size: clamp(26px, 4vh, 52px);
+}
+
+.display-options li {
+  background: var(--panel);
+  border: 3px solid var(--line);
+  border-radius: 16px;
+  padding: 1.4vh 1.4vw;
+  text-align: left;
+}
+
+.display-options li b {
+  color: var(--dim);
+  margin-right: 0.6em;
+}
+
+.display-options li.correct {
+  background: #14532d;
+  border-color: #6ee7a8;
+  animation: pop 320ms ease-out;
+}
+
+.display-options li.correct b {
+  color: #6ee7a8;
+}
+
+.display-card {
+  text-align: center;
+}
+
+.display-card h2 {
+  font-size: clamp(48px, 9vh, 120px);
+  margin: 0 0 2vh;
+}
+
+.display-card p {
+  font-size: clamp(28px, 4vh, 52px);
+  color: var(--dim);
+  margin: 0;
+}
+
+/* Countdown ---------------------------------------------------------------- */
+
+.countdown {
+  width: 60%;
+  height: 5vh;
+  background: var(--panel);
+  border-radius: 999px;
+  position: relative;
+  overflow: hidden;
+}
+
+.countdown-bar {
+  height: 100%;
+  background: var(--accent);
+  transition: width 200ms linear;
+}
+
+.countdown.done .countdown-bar {
+  background: var(--danger);
+}
+
+.countdown-value {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 3.4vh;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Leaderboard -------------------------------------------------------------- */
+
+/**
+ * Sized so a typical roster fits on one line at full size, wrapping to a second
+ * rather than shrinking names to initials.
+ *
+ * Past two lines the rows scale down instead of being clipped. Clipping sorted
+ * rows means the people who disappear are the ones at the bottom of the
+ * scoreboard — the ones most likely to be looking for their name. At a family
+ * party that is the one thing you cannot do to someone.
+ */
+.display-leaderboard {
+  display: flex;
+  gap: 1vh 0.7vw;
+  justify-content: center;
+  align-content: center;
+  flex-wrap: wrap;
+  max-height: 30vh;
+  border-top: 3px solid var(--line);
+  padding-top: 2vh;
+  /* Set by the view from the roster size; 1 = full size. */
+  --lb-scale: 1;
+}
+
+.lb-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.7vw;
+  min-width: 0;
+  background: var(--panel);
+  border: 3px solid var(--entrant-color);
+  border-radius: 999px;
+  padding: 0.5vh 0.7vw 0.5vh 0.4vh;
+}
+
+/* Beat `.avatar { width: 100% }`, which in a flex row stretches to an ellipse. */
+.lb-row .avatar {
+  flex: 0 0 auto;
+  width: calc(6vh * var(--lb-scale));
+  height: calc(6vh * var(--lb-scale));
+}
+
+.lb-name {
+  font-size: calc(clamp(18px, 2.2vh, 28px) * var(--lb-scale));
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.lb-score {
+  font-size: calc(clamp(22px, 3.2vh, 44px) * var(--lb-scale));
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  min-width: 1.2em;
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.lb-row.dimmed {
+  opacity: 0.35;
+}
+
+/* Just enough to be noticed from across the room. Nothing elaborate. */
+.lb-row.flash {
+  animation: flash 900ms ease-out;
+}
+
+.lb-delta {
+  position: absolute;
+  top: -1.2em;
+  right: 0.6em;
+  font-size: clamp(20px, 2.8vh, 36px);
+  font-weight: 800;
+  color: #6ee7a8;
+  animation: rise 900ms ease-out forwards;
+}
+
+@keyframes flash {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(110, 231, 168, 0.7);
+  }
+  35% {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 12px rgba(110, 231, 168, 0);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes rise {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-row.flash,
+  .lb-delta,
+  .display-answer,
+  .display-options li.correct {
+    animation: none;
+  }
+}

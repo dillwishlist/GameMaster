@@ -1,0 +1,70 @@
+# Fill-in-the-blanks starter for a game file.
+#
+#   cp docs/template.yaml content/my-game.yaml
+#
+# Copy it into ./content/ first — it deliberately lives in docs/ because the
+# server plays the alphabetically-first .yaml in ./content/ when you don't name
+# one, and a template sitting in there would hijack your real game.
+#
+# Then edit it while the server is running. It hot-reloads, and a typo shows up
+# on the host view instead of taking the game down. Full guide: docs/CONTENT.md
+
+# Shown on the TV before the first round, and in the terminal at boot. Required.
+title: 'CHANGE ME — e.g. Lucy’s 5th Birthday'
+
+# Optional. Seeds the player list on a fresh session so you are not typing names
+# into an iPad while people are arriving, and so the `restrictTo:` ids below
+# resolve. The host can add, rename, re-face and remove all of these on the day.
+entrants:
+  - id: team-one # lowercase, no spaces. This is the id `restrictTo` uses.
+    displayName: 'Team One' # what the room sees
+    avatar: /content/avatars/avatar-a.svg # optional; pick any file in content/avatars/
+  - id: team-two
+    displayName: 'Team Two'
+    avatar: /content/avatars/avatar-b.svg
+  - id: lucy
+    displayName: 'Lucy'
+    avatar: /content/avatars/avatar-d.svg
+    # Optional: who is on this team. Shown to the host, handy for a family team.
+    members: [{ name: 'Lucy' }]
+
+# Rounds play in the order you list them, but the host can jump to any round
+# from a dropdown at any time. At least one round is required.
+rounds:
+  # ---------------------------------------------------------------- manual ---
+  # `manual` = a prompt on the TV, optional picture or sound, and you deciding
+  # who won. This one type covers charades, musical chairs, pin-the-tail, relay
+  # races, sing-alongs, "guess how many sweets" — everything. See docs/CONTENT.md.
+  - id: round-one # unique, lowercase, no spaces. Don't rename it mid-party.
+    type: manual
+    title: 'CHANGE ME — the round title on the TV'
+    defaultPoints: 1 # optional (default 1): points per tap in this round
+    # timerSeconds: 45   # optional: a countdown YOU start and stop. Nothing
+    #                    # expires on its own; the clock is theatre.
+    # restrictTo: [lucy] # optional: only these entrant ids can score here.
+    items:
+      - prompt: 'CHANGE ME — the question, or the instruction for the game'
+        answer: 'CHANGE ME — shown on the TV only when you tap Reveal'
+        # note: 'Host-only aside: wait for the laugh before revealing.'
+        # points: 3                                    # overrides defaultPoints
+        # media: { image: assets/your-photo.jpg }      # shown large, immediately
+        # media: { audio: assets/cue-fanfare.wav }     # plays on arrival at this item
+      - prompt: 'CHANGE ME — a second item. Add as many as you like.'
+        answer: 'CHANGE ME'
+
+  # -------------------------------------------------------- multipleChoice ---
+  # Four options on the TV, you tap the face of whoever called it right. The
+  # correct option is not sent to the display until you reveal, so nobody can
+  # find it by peeking at the screen.
+  - id: round-two
+    type: multipleChoice
+    title: 'CHANGE ME — e.g. How Well Do You Know Them?'
+    defaultPoints: 2
+    items:
+      - prompt: 'CHANGE ME — the question'
+        options: ['CHANGE ME A', 'CHANGE ME B', 'CHANGE ME C', 'CHANGE ME D']
+        correct: C # the LETTER of the right option: A, B, C ... (2–8 options)
+        # answer: 'Optional extra line read out on reveal.'
+      - prompt: 'CHANGE ME — a second question'
+        options: ['Yes', 'No']
+        correct: A
