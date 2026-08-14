@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Entrant, HostState } from '../../../shared/types.js';
 import type { RoundEvent } from '../../../shared/events.js';
 import { useConnection, useWakeLock } from '../lib/connection.js';
+import { BoardGrid, boardHostExtra } from './BoardGrid.js';
 import { EntrantTile } from './EntrantTile.js';
 import { ScoreKeypad } from './ScoreKeypad.js';
 import { SetupPanel } from './SetupPanel.js';
@@ -56,6 +57,7 @@ export function HostView() {
   const note = (round?.extra as { note?: string } | undefined)?.note;
   const options = (round?.extra as { options?: { label: string; text: string }[] } | undefined)?.options;
   const correctLabel = (round?.extra as { correctLabel?: string } | undefined)?.correctLabel;
+  const board = boardHostExtra(round);
   const entrants = state.entrants.filter((e) => e.active);
   const keypadEntrant = state.entrants.find((e) => e.id === keypadFor) ?? null;
 
@@ -104,7 +106,11 @@ export function HostView() {
       )}
 
       <main className="host-main">
-        {round ? (
+        {/* The board owns its whole panel — grid, clue card and answer — because
+            on a board the prompt only exists once a square is open. */}
+        {round && board ? (
+          <BoardGrid round={round} onEvent={roundEvent} />
+        ) : round ? (
           <>
             <p className="host-prompt">{round.prompt}</p>
             {options && (
@@ -151,18 +157,23 @@ export function HostView() {
       </section>
 
       <footer className="host-transport">
+        {/* A board has no linear order, so these two mean "back out of this
+            square" and "done with this square". Relabelled rather than hidden:
+            a button that moves the round must say what it does. */}
         <button className="btn big" disabled={!round?.can.prev} onClick={() => roundEvent({ type: 'PREV' })}>
-          ‹ Prev
+          {board ? '‹ Wrong square' : '‹ Prev'}
         </button>
         <button
           className={`btn big ${round?.revealed ? '' : 'btn-primary'}`}
-          disabled={!round}
+          // On a board there is nothing to reveal until a square is open. Other
+          // round types keep the button live: `manual` reveals media too.
+          disabled={!round || (Boolean(board) && !round.can.reveal)}
           onClick={() => roundEvent({ type: round?.revealed ? 'HIDE' : 'REVEAL' })}
         >
           {round?.revealed ? 'Hide' : 'Reveal'}
         </button>
         <button className="btn big" disabled={!round?.can.next} onClick={() => roundEvent({ type: 'NEXT' })}>
-          Next ›
+          {board ? 'Done ›' : 'Next ›'}
         </button>
         <button className={`btn big ${deductMode ? 'btn-danger' : ''}`} onClick={() => setDeductMode((d) => !d)}>
           {deductMode ? '− Deduct' : '+ Award'}

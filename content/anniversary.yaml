@@ -67,6 +67,12 @@ rounds:
     defaultPoints: 1
     items:
       - prompt: 'How many grandchildren?'
+        # A cue plays when the display *lands on* an item whose audio differs
+        # from the last one played — not when you reveal, and not when you award
+        # a point. So this chime is doing one job: turning a room full of
+        # talking adults towards Lucy as her round starts. Run
+        # `node scripts/make-sounds.mjs` if content/assets/*.wav are missing.
+        media: { audio: assets/cue-correct.wav }
         answer: 'Three — four in November!'
       - prompt: 'What colour is Grandad’s car?'
         answer: 'Green'
@@ -111,5 +117,7 @@ rounds:
       - prompt: 'Best guess: how many cups of tea has Mum made in 40 years?'
         answer: 'Nobody knows. Five points to the funniest number.'
       - prompt: 'Raise a glass.'
-        media: { image: assets/wedding-1985.svg }
+        # The one cue that has to be here. Two in a whole game is the right
+        # number — a chime on every question is exhausting in a small room.
+        media: { image: assets/wedding-1985.svg, audio: assets/cue-fanfare.wav }
         answer: 'To David and Jennifer.'

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { DisplayState } from '../../../shared/types.js';
 import { useConnection } from '../lib/connection.js';
 import { Avatar } from '../components/Avatar.js';
+import { BoardGrid, displayBoardExtra } from './BoardGrid.js';
 import { Countdown } from './Countdown.js';
 import '../styles/display.css';
 
@@ -27,6 +28,7 @@ export function DisplayView() {
   const round = state.round;
   const options = (round?.extra as { options?: { label: string; text: string }[] } | undefined)?.options;
   const correctLabel = (round?.extra as { correctLabel?: string } | undefined)?.correctLabel;
+  const board = displayBoardExtra(round);
 
   return (
     <div className="display">
@@ -49,7 +51,11 @@ export function DisplayView() {
           </div>
         )}
 
-        {round && (
+        {/* The board is the whole screen: a grid between clues, one clue on it
+            when a square is open. Its own answer rendering lives in there too. */}
+        {round && board && <BoardGrid round={round} />}
+
+        {round && !board && (
           <>
             {/* With a picture the prompt is a caption above it — the baby-photo
                 round is display-led, and the picture is the question. */}
@@ -69,10 +75,10 @@ export function DisplayView() {
             {/* `answer` is absent from this payload entirely until the host
                 reveals — the server strips it, so it is never in the DOM. */}
             {round.revealed && round.answer && <p className="display-answer">{round.answer}</p>}
-
-            {round.timer && <Countdown timer={round.timer} />}
           </>
         )}
+
+        {round?.timer && <Countdown timer={round.timer} />}
       </main>
 
       <footer className="display-leaderboard">

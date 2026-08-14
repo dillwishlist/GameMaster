@@ -68,3 +68,9 @@ None of it is optional and none of it is interesting — that is the point.
 
 The full event log is in `data/session-<id>.jsonl`, including a sidecar of
 everything that was undone. Keep it. It is the only record of who actually won.
+
+```bash
+npm run replay          # final scores and a readable transcript of the game
+```
+
+See [`docs/AFTER-THE-PARTY.md`](AFTER-THE-PARTY.md).

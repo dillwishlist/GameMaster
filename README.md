@@ -47,6 +47,7 @@ Then work down [`docs/RUNDAY.md`](docs/RUNDAY.md), which is not optional.
 | `npm run smoke` | Boot the real server and play a round through real sockets |
 | `npm run typecheck` | Type-check the client and the server separately |
 | `npm run build` | Build the client bundle into `dist/client` |
+| `npm run replay` | Turn a finished session log into a readable transcript — see [`docs/AFTER-THE-PARTY.md`](docs/AFTER-THE-PARTY.md) |
 
 Environment: `GM_PORT` (4000), `GM_CONTENT` (a specific content file),
 `GM_CONTENT_DIR` (`./content`), `GM_DATA_DIR` (`./data`), `GM_PASSPHRASE`
@@ -94,7 +95,8 @@ during a rehearsal, not by reading this paragraph.
 Content is files, not a UI. There is no authoring screen and there is not going
 to be one. Put a `.yaml` file in `./content/` — see
 [`content/anniversary.yaml`](content/anniversary.yaml) for a complete worked
-example.
+example, [`docs/CONTENT.md`](docs/CONTENT.md) for the full field-by-field guide,
+and [`docs/template.yaml`](docs/template.yaml) for a starter to copy.
 
 ```yaml
 title: '40th Anniversary Games'

@@ -9,6 +9,7 @@
  */
 
 import type { RoundType } from './contract.js';
+import { boardRoundType } from './board.js';
 import { manualRoundType } from './manual.js';
 import { multipleChoiceRoundType } from './multipleChoice.js';
 
@@ -20,6 +21,7 @@ function register(rt: RoundType<any, any>): void {
 
 register(manualRoundType);
 register(multipleChoiceRoundType);
+register(boardRoundType);
 
 export function getRoundType(id: string): RoundType<any, any> | undefined {
   return registry.get(id) as RoundType<any, any> | undefined;

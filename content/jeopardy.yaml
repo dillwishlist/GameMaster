@@ -1,0 +1,139 @@
+# A family Jeopardy board — the sample for the `board` round type.
+#
+# The server plays the alphabetically-first .yaml in ./content, so this file is
+# here to be read and copied from, not to be played by default. To run it:
+#
+#     GM_CONTENT=content/jeopardy.yaml npm start
+#
+# A board is categories across the top and clues down each one. Give every clue
+# what it is worth. That number is the whole point of this round type: a right
+# answer pays it and a wrong answer costs it, so the brave squares at the bottom
+# of a column are the ones that decide the game.
+#
+# Columns do not have to be the same length — a short category leaves a gap on
+# the board rather than an error in this file.
+
+title: 'Family Jeopardy'
+
+entrants:
+  - id: mum-dad
+    displayName: 'Mum & Dad'
+    avatar: /content/avatars/avatar-a.svg
+    members: [{ name: 'David' }, { name: 'Jennifer' }]
+  - id: the-swans
+    displayName: 'Team Swan'
+    avatar: /content/avatars/avatar-b.svg
+  - id: the-outlaws
+    displayName: 'The Out-laws'
+    avatar: /content/avatars/avatar-c.svg
+  - id: the-cousins
+    displayName: 'The Cousins'
+    avatar: /content/avatars/avatar-f.svg
+
+rounds:
+  - id: warm-up
+    type: manual
+    title: 'Before We Start'
+    items:
+      - prompt: 'Pick a team name. Loudest wins.'
+        note: 'Stall here until everyone has a drink and a seat.'
+        answer: 'Right — to the board.'
+
+  - id: family-board
+    type: board
+    title: 'Family Jeopardy'
+    # The host starts this by hand, per square. Nothing expires on its own.
+    timerSeconds: 30
+    categories:
+      - name: 'Holidays'
+        clues:
+          - value: 100
+            prompt: 'The seaside town we went to in 1998, in the rain, for a week.'
+            answer: 'Skegness'
+          - value: 200
+            prompt: 'The caravan site where Dad reversed into the gatepost.'
+            answer: 'Sandy Balls — and yes, that is its real name'
+          - value: 300
+            prompt: 'The only country the whole family has been to together.'
+            answer: 'France, 2007'
+          - value: 400
+            prompt: 'What got left behind at the airport in 2011?'
+            answer: 'Grandma’s hat. It has never been forgiven.'
+            note: 'Grandma will interrupt. Let her.'
+          - value: 500
+            prompt: 'Name every campsite of the summer of 2003, in order.'
+            answer: 'Nobody can. Award it to the best attempt.'
+            # A wager square: the host sets the stake before adjudicating.
+            wager: true
+
+      - name: 'Who Said It?'
+        clues:
+          - value: 100
+            prompt: '"I''m not lost. I know exactly where we are."'
+            answer: 'Dad'
+          - value: 200
+            prompt: '"It''s not a proper meal without a potato."'
+            answer: 'Grandad'
+          - value: 300
+            prompt: '"I''ll just have a small one." (Nobody has ever seen a small one.)'
+            answer: 'Aunt Ruth'
+          - value: 400
+            prompt: '"Who moved the good scissors?"'
+            answer: 'Mum. Every week since 1985.'
+          - value: 500
+            prompt: '"Can I be excused? I''ve finished." — aged four, still says it.'
+            answer: 'Lucy'
+
+      - name: 'The Wedding'
+        clues:
+          - value: 100
+            prompt: 'What year?'
+            answer: '1985'
+          - value: 200
+            prompt: 'Which uncle lost the rings for eleven minutes?'
+            answer: 'Uncle Pete'
+          - value: 300
+            prompt: 'What was the first dance?'
+            answer: '"True" — Spandau Ballet'
+          - value: 400
+            prompt: 'Who is missing from this photograph, and why?'
+            media: { image: assets/wedding-1985.svg }
+            answer: 'Cousin Michael. He was taking it.'
+          - value: 500
+            prompt: 'How many people were actually invited, versus how many came?'
+            answer: '60 invited, 94 arrived'
+
+      - name: 'Pets We Have Known'
+        clues:
+          - value: 100
+            prompt: 'The first family dog.'
+            answer: 'Bramble'
+          - value: 200
+            prompt: 'The cat that lived in the airing cupboard for a fortnight.'
+            answer: 'Mittens'
+          - value: 300
+            prompt: 'What happened to the goldfish in 1996?'
+            answer: 'We do not talk about the goldfish.'
+          - value: 400
+            prompt: 'Which pet ate an entire Christmas cake?'
+            answer: 'Bramble. Obviously Bramble.'
+
+      - name: 'Small People'
+        clues:
+          - value: 100
+            prompt: 'Who is the youngest person in this room?'
+            answer: 'Whoever it is, give them the points anyway'
+          - value: 200
+            prompt: 'How many grandchildren?'
+            answer: 'Three — four in November!'
+          - value: 300
+            prompt: 'Whose first word was "tractor"?'
+            answer: 'Lucy'
+          - value: 400
+            prompt: 'Act out a toddler being told it is bedtime. Thirty seconds.'
+            note: 'Start the timer. Award it to whoever makes the room laugh.'
+            answer: 'Host’s call.'
+          - value: 500
+            prompt: 'Everyone guesses the combined age of every grandchild. Closest wins.'
+            answer: 'Do the sums out loud, it is funnier.'
+            wager: true
