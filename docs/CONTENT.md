@@ -151,6 +151,57 @@ correctly. Same fields as `manual` at round level (`items`, `defaultPoints`,
 
 The correct option is withheld from the TV until you reveal, then highlighted.
 
+## `board`
+
+Jeopardy. A grid of categories across the top and clue values down each one. A
+contestant picks a square, you tap it, the clue goes up on the TV, and you
+adjudicate exactly as in a `manual` round — tap the face of whoever got it.
+
+The difference is the stakes: **a right answer pays the square's value and a
+wrong answer costs it** (long-press a face, or flip the Award/Deduct switch).
+That is what makes the bottom of a column worth playing for.
+
+| Field | | |
+|---|---|---|
+| `categories` | **required** | Up to 8. Each has a `name` and a list of `clues` |
+| `categories[].name` | **required** | The column heading on the TV |
+| `categories[].clues` | **required** | Up to 8 per column. Columns need not be the same length — a short one leaves a gap on the board, not an error |
+| `clues[].value` | **required** | What the square is worth. Paid on a right answer, taken on a wrong one |
+| `clues[].prompt` | **required** | The clue |
+| `clues[].answer` | optional | The response. Host-only until you reveal |
+| `clues[].wager` | optional | Marks a daily double. You set the stake by hand before awarding, from one-tap presets. The TV never shows which square it is |
+| `clues[].media.image` | optional | As above |
+| `clues[].note` | optional | Host-only aside |
+| `timerSeconds` | optional | Round level. Adds a countdown you start by hand once a square is open |
+
+```yaml
+- id: family-board
+  type: board
+  title: 'Family Jeopardy'
+  categories:
+    - name: 'Holidays'
+      clues:
+        - value: 100
+          prompt: 'The caravan site where Dad reversed into the gatepost.'
+          answer: 'Sandy Balls — and yes, that is its real name'
+        - value: 200
+          prompt: 'The only country the whole family has been to together.'
+          answer: 'France, 2007'
+          wager: true
+```
+
+See [`../content/jeopardy.yaml`](../content/jeopardy.yaml) for a full board.
+
+Two things worth knowing before the day:
+
+- Squares are addressed by **position**, so **adding or removing a clue while
+  the board is in play is refused** — it would move the round underneath
+  itself and could put an already-played answer on the TV. Reword freely;
+  restructure between rounds. The host view tells you if you try.
+- Tapped the wrong square? **Wrong square** backs out and leaves it in play.
+  **Done** consumes it. A consumed square can still be reopened — you are
+  never stuck.
+
 ## Party games are `manual` rounds
 
 **This is the section people skip and then ask for a new feature.**
