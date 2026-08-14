@@ -19,7 +19,6 @@ import {
   readFileSync,
   readdirSync,
   renameSync,
-  statSync,
   writeFileSync,
   writeSync,
 } from 'node:fs';
@@ -304,16 +303,34 @@ export function newSessionId(now = new Date()): string {
 
 export function latestSessionFile(dataDir: string): string | null {
   if (!existsSync(dataDir)) return null;
-  // By modification time, not by name. Ids are second-granular and a collision
-  // is disambiguated with a "-2" suffix — and '-' sorts before '.', so
-  // `session-<id>-2.jsonl` sorts *before* `session-<id>.jsonl`. Sorting by name
-  // would resume the older of the two: reset the game, reboot the laptop, and
-  // get the pre-reset scores back.
-  const files = readdirSync(dataDir)
-    .filter((f) => f.startsWith('session-') && f.endsWith('.jsonl') && !f.endsWith('.undone.jsonl'))
-    .map((f) => path.join(dataDir, f))
-    .sort((a, b) => statSync(a).mtimeMs - statSync(b).mtimeMs);
-  return files.length ? files[files.length - 1] : null;
+  // Ordered by the timestamp in the id and then the collision counter, not by
+  // filename and not by mtime. Plain name order is wrong because '-' sorts
+  // before '.', so `session-<id>-2.jsonl` comes *before* `session-<id>.jsonl`
+  // — reset the game, reboot the laptop, and the pre-reset scores come back.
+  // mtime is wrong too: two sessions started in the same millisecond tie, and
+  // the winner is then whatever order the directory happens to be read in.
+  const files = readdirSync(dataDir).filter(
+    (f) => f.startsWith('session-') && f.endsWith('.jsonl') && !f.endsWith('.undone.jsonl'),
+  );
+
+  const sorted = files.sort((a, b) => {
+    const [baseA, nA] = sessionSortKey(a);
+    const [baseB, nB] = sessionSortKey(b);
+    return baseA === baseB ? nA - nB : baseA < baseB ? -1 : 1;
+  });
+
+  return sorted.length ? path.join(dataDir, sorted[sorted.length - 1]) : null;
+}
+
+/**
+ * `session-20260814-120000-2.jsonl` → `['20260814-120000', 2]`. The id is
+ * zero-padded, so string order over the timestamp is chronological order.
+ * Anything hand-named sorts by its own name, ahead of the generated ones.
+ */
+function sessionSortKey(fileName: string): [string, number] {
+  const match = /^session-(\d{8}-\d{6})(?:-(\d+))?\.jsonl$/.exec(fileName);
+  if (!match) return [fileName, 0];
+  return [match[1], match[2] ? Number(match[2]) : 1];
 }
 
 function readLog(file: string): GameEvent[] {
