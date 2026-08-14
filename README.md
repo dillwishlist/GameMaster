@@ -74,6 +74,9 @@ top of it:
   leaderboard.
 - **Timers and sound cues**, both host-controlled, both optional.
 - **`npm run replay`** — final scores and a readable transcript after the fact.
+- **A question editor** at `/edit`, which writes the same YAML file by hand-
+  editable, comment-preserving means, and can put a question on the TV to check
+  it without playing the round.
 
 Deliberately not built: player self-join and device submission (Phase 3), and
 an extracted plugin SDK (Phase 3). See [Phasing](#phasing).
@@ -96,8 +99,12 @@ during a rehearsal, not by reading this paragraph.
 
 ## Content
 
-Content is files, not a UI. There is no authoring screen and there is not going
-to be one. Put a `.yaml` file in `./content/` — see
+Content is files, not a UI — and it stays that way even though there is now an
+editor at `/edit`: the editor reads and writes the same YAML file the game
+plays, so hand-editing, `git diff` and the printed fallback all still work. See
+[`docs/EDITOR.md`](docs/EDITOR.md).
+
+Put a `.yaml` file in `./content/` — see
 [`content/anniversary.yaml`](content/anniversary.yaml) for a complete worked
 example, [`docs/CONTENT.md`](docs/CONTENT.md) for the full field-by-field guide,
 and [`docs/template.yaml`](docs/template.yaml) for a starter to copy.
@@ -242,5 +249,10 @@ If it comes back full on day 2, even a bare Phase 0 makes a great game.
 ## Non-goals
 
 No user accounts, no cloud services, no internet dependency at runtime, no
-question-authoring UI, no analytics, no multi-room support, no auth beyond an
-optional host passphrase, no mobile-native apps, no AI question generation.
+analytics, no multi-room support, no auth beyond an optional host passphrase,
+no mobile-native apps, no AI question generation.
+
+"No question-authoring UI" was on this list, and was removed deliberately: the
+editor at `/edit` earns its place by making prep easier, and it was built in a
+way that keeps every reason the non-goal existed — the file is still the source
+of truth, still hand-editable, still the thing the game reads.

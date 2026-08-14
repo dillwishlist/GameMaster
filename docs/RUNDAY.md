@@ -3,6 +3,10 @@
 A live event has a pre-flight. Work down this list on the morning, in order.
 None of it is optional and none of it is interesting — that is the point.
 
+The question editor at `/edit` is a prep tool, not a run-day one. Nothing below
+needs it, and it is the one screen you should not have open while the game is
+running.
+
 ## The day before
 
 - [ ] `npm start` and play **every round to the last item** with a second
