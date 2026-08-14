@@ -60,6 +60,12 @@ Useful flags and variables:
 - **Set by hand** — `SET_SCORE` events, where the host opened the keypad and
   typed a number. Every automated scoring path has this override by design; it
   is invariant two.
+- **Could not be replayed** — appears only when it happened, as
+  `corrections.unreplayable`. An event in the log that today's code cannot
+  reduce: a log written by an older build, or one hand-edited on the morning.
+  It is skipped and everything else still prints, the same tolerance the server
+  has when it resumes a session. If you see this, the scores below it are
+  computed without that event.
 
 Both are worth a look rather than a wince. A round with a pile of undos and
 hand-set scores behind it is usually a round type that misbehaved, or a question
@@ -86,3 +92,7 @@ and the content file is the thing somebody tidied up afterwards.
 - **The last line is torn.** The laptop died mid-write. The line is skipped,
   counted in `corrections.unreadableLines`, and everything before it still
   prints — the same tolerance the server has when it resumes a session.
+- **A round type the tool has never heard of.** Its awards still appear, dated
+  and attributed, under `(this round type has no item list)`. That is not the
+  same as a missing question, and the tool says so rather than blaming your
+  content file for something it simply cannot enumerate.
