@@ -215,6 +215,18 @@ issues are listed at the end of the client review section above — none of them
 stops a party, and the two worth doing first are the paused-timer drift (needs
 a server payload change) and a favicon.
 
+## Planned, not built
+
+[`PLAN-EDITOR-AND-SUBMISSIONS.md`](PLAN-EDITOR-AND-SUBMISSIONS.md) designs a GUI
+question editor and a submission flow (anonymous, host-visible, revealed, or
+labelled), and ranks every other gap worth closing. Nothing there is built. Two
+things from it are worth knowing before picking anything up:
+
+- The editor **reverses the "no question-authoring UI" non-goal**. That is a
+  deliberate decision, not an oversight — but the README still states the
+  non-goal, and the two should be reconciled in whichever commit starts the work.
+- The plan's own advice is to build none of it near the party.
+
 ## What not to build
 
 No user accounts, no cloud, no runtime internet dependency, no question
