@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * Faces are the primary key of this UI. A pre-literate player finds herself by
@@ -20,6 +20,9 @@ export function Avatar({
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
+  // Without this, picking a working photo after a broken one leaves the tile on
+  // the generated initial until the page is reloaded.
+  useEffect(() => setFailed(false), [src]);
   const initial = src.startsWith('initial:') ? src.slice('initial:'.length) : [...name.trim()][0] ?? '?';
 
   if (!src || src.startsWith('initial:') || failed) {

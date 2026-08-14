@@ -29,6 +29,7 @@ export function HostView() {
 
   const round = state?.round ?? null;
   const roundId = state?.currentRoundId ?? null;
+  const keyPoints = Number((round?.extra as { points?: number } | undefined)?.points ?? state?.defaultPoints ?? 1);
 
   const roundEvent = useMemo(
     () => (event: RoundEvent) => {
@@ -44,10 +45,30 @@ export function HostView() {
     else dispatch({ type: 'AWARD_POINTS', entrantId: entrant.id, points });
   };
 
-  useHostKeys(state, { roundEvent, command, award });
+  // Removing an entrant closes their keypad; without clearing the id, re-adding
+  // them — or an Undo that brings them back — reopened the sheet unprompted
+  // over the whole host screen.
+  useEffect(() => {
+    if (keypadFor && state && !state.entrants.some((e) => e.id === keypadFor)) setKeypadFor(null);
+  }, [state, keypadFor]);
+
+  useHostKeys(state, {
+    roundEvent,
+    command,
+    award,
+    // The shortcuts exist for the wifi-down fallback, so they have to agree
+    // with the buttons beside them — same points, same deduct switch.
+    points: keyPoints,
+    deductMode,
+    // A modal is open: the host is typing a name, not playing.
+    suspended: setupOpen || keypadFor !== null,
+  });
 
   if (status === 'denied' || (required && !passphrase)) {
-    return <PassphraseGate error={error} onSubmit={save} />;
+    // The first connect happens before /api/config answers, so the server
+    // denies it and sets an error. Showing that on the untouched form reads as
+    // "the passphrase is broken" on run day.
+    return <PassphraseGate error={passphrase ? error : null} onSubmit={save} />;
   }
   if (!state) {
     return <div className="host-loading">Connecting…{status === 'offline' ? ' (server unreachable)' : ''}</div>;
@@ -61,6 +82,9 @@ export function HostView() {
   const correctLabel = (round?.extra as { correctLabel?: string } | undefined)?.correctLabel;
   const board = boardHostExtra(round);
   const entrants = state.entrants.filter((e) => e.active);
+  // Derived from the id, so removing an entrant closes the sheet — but
+  // re-adding them, or an Undo that brings them back, used to reopen it
+  // unprompted over the whole host screen. Clearing the id on close settles it.
   const keypadEntrant = state.entrants.find((e) => e.id === keypadFor) ?? null;
 
   return (
@@ -69,7 +93,12 @@ export function HostView() {
         <select
           className="round-picker"
           value={state.currentRoundId ?? ''}
-          onChange={(e) => dispatch({ type: 'ROUND_SELECT', roundId: e.target.value || null })}
+          onChange={(e) => {
+            // Hand focus back, or the next arrow key steps the dropdown and
+            // silently changes round instead of moving to the next question.
+            e.currentTarget.blur();
+            dispatch({ type: 'ROUND_SELECT', roundId: e.target.value || null });
+          }}
         >
           <option value="">— Scores / between rounds —</option>
           {state.rounds.map((r) => (
@@ -250,6 +279,9 @@ function useHostKeys(
     roundEvent: (event: RoundEvent) => void;
     command: (name: 'undo' | 'redo' | 'resetSession') => void;
     award: (entrant: Entrant, points: number) => void;
+    points: number;
+    deductMode: boolean;
+    suspended: boolean;
   },
 ): void {
   useEffect(() => {
@@ -257,24 +289,34 @@ function useHostKeys(
       const target = e.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (!state) return;
+      if (!state || actions.suspended) return;
 
       const entrants = state.entrants.filter((en) => en.active);
-      if (/^[1-9]$/.test(e.key)) {
-        const entrant = entrants[Number(e.key) - 1];
-        if (entrant) actions.award(entrant, e.shiftKey ? -1 : 1);
+
+      // Matched on `code`, not `key`: with shift held, Digit1 arrives as "!"
+      // on every common layout, so a `key` test silently made shift-to-deduct
+      // dead code and fell through to the switch below.
+      const digit = /^Digit([1-9])$/.exec(e.code);
+      if (digit) {
+        const entrant = entrants[Number(digit[1]) - 1];
+        const magnitude = Math.abs(actions.points);
+        if (entrant) actions.award(entrant, e.shiftKey || actions.deductMode ? -magnitude : magnitude);
         return;
       }
+
       switch (e.key) {
         case ' ':
           e.preventDefault();
           actions.roundEvent({ type: state.round?.revealed ? 'HIDE' : 'REVEAL' });
           break;
+        // Gated on what the transport itself allows. On a board these are
+        // "consume this square" and "back out of it", so an arrow key pressed
+        // out of habit would throw the open clue away in front of the room.
         case 'ArrowRight':
-          actions.roundEvent({ type: 'NEXT' });
+          if (state.round?.can.next) actions.roundEvent({ type: 'NEXT' });
           break;
         case 'ArrowLeft':
-          actions.roundEvent({ type: 'PREV' });
+          if (state.round?.can.prev) actions.roundEvent({ type: 'PREV' });
           break;
         case 'u':
         case 'z':

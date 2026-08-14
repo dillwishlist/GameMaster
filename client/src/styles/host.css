@@ -89,9 +89,11 @@
   overflow: auto;
   display: flex;
   flex-direction: column;
-  /* Centred vertically so a text-only prompt sits in the host's eyeline
-     instead of stranded at the top of a tall empty panel. */
-  justify-content: center;
+  /* `safe` matters: plain `center` overflows in both directions, so a long
+     prompt spills above the scroll origin and the first line becomes
+     permanently unreachable — the host cannot read the question they are
+     holding the room to. `safe center` falls back to start when it overflows. */
+  justify-content: safe center;
   gap: 10px;
   align-items: flex-start;
 }

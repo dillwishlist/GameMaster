@@ -81,7 +81,12 @@ export function DisplayView() {
         {round?.timer && <Countdown timer={round.timer} />}
       </main>
 
-      <footer className="display-leaderboard">
+      {/* Rows shrink past a handful of players rather than being clipped off
+          the bottom of the screen. */}
+      <footer
+        className="display-leaderboard"
+        style={{ ['--lb-scale' as string]: String(leaderboardScale(state.leaderboard.length)) }}
+      >
         {state.leaderboard.map((row) => (
           <div
             key={row.id}
@@ -97,6 +102,12 @@ export function DisplayView() {
       </footer>
     </div>
   );
+}
+
+/** Full size up to six players, then down to a floor that still reads across a room. */
+function leaderboardScale(count: number): number {
+  if (count <= 6) return 1;
+  return Math.max(0.62, 1 - (count - 6) * 0.06);
 }
 
 /**

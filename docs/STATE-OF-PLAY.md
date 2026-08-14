@@ -33,7 +33,7 @@ npm run check      # typecheck + unit tests + end-to-end smoke test
 | Display view (prompt, media, options, leaderboard) | Done |
 | YAML content, hot reload, line-referenced errors | Done |
 | Host view usable on the laptop (wifi-down fallback) | Done |
-| Timers | Server-side done; no host button to start one yet |
+| Timers, host-controlled | Done |
 | `board` / Jeopardy round type, with wagers | Done |
 | Sound cues (synthesized, no downloads) | Done |
 | Session replay / export (`npm run replay`) | Done |
@@ -70,7 +70,7 @@ do-over". Findings and their resolution, so nobody re-litigates them:
 | 2 | **A throw in a socket handler killed the process.** Only `dispatch` was guarded; socket.io does not contain listener exceptions. | **Fixed.** All handlers wrapped, `pushAll` moved inside the content-reload try, and process-level guards added. |
 | 3 | **A one-character YAML typo silently zeroed the TV scoreboard.** Points are recomputed from the log, so a round that stops resolving takes its points with it — and a round-scoped validation failure doesn't even set `contentError`. | **Fixed.** A reload that would orphan an already-played round is refused, with the reason on the host view. |
 | 4 | **Unknown socket roles failed open to `host`**, handing unrevealed answers to any client that sent a typo. | **Fixed.** Fails closed to `display`; re-`hello` now leaves the previous room. |
-| 6 | Same-second session ids sorted such that resume picked the *older* log. | **Fixed.** Sorted by mtime. |
+| 6 | Same-second session ids sorted such that resume picked the *older* log. | **Fixed.** Ordered by the timestamp and counter in the id itself — an mtime sort ties and was caught failing in CI. |
 | 7 | The header comment promised an fsync that `appendFileSync` doesn't do, and `rewrite` could lose the whole log. | **Fixed.** Real fsync on append, temp-file-and-rename for rewrite. |
 | 5 | `manual` offered a Reveal button for an image-only item, but `sanitizeDisplayView` cannot hide `media` — the room sees it the whole time. | **Fixed** (reveal no longer advertised for media alone). The sanitizer's contract is now documented: it sees the top-level `answer` and **top-level** `extra` keys only — `delete` is shallow, so secrets nested inside an `extra` sub-object *will* ship to the TV. |
 | 8 | Minors: awards emitted from `init` are dropped; `ENTRANT_REMOVE` leaves a `lastDelta` entry; `reset()` has a dead listener-copy loop. | **Open, deliberately.** None reachable by current round types; all noted here rather than fixed under time pressure. |
@@ -111,6 +111,37 @@ One structural note from it worth keeping: the core hands a plugin its own
 shared state. None do. If a future one does, `replay` would mask it and only
 the incremental path would diverge — which is the nastiest possible bug shape
 here. Worth a line in the plugin contract if a third-party type ever lands.
+
+### The third review — the client, driven in a real browser
+
+The one flagged as unread has now landed and been acted on. It drove both views
+in Chromium and found fifteen confirmed issues. Fixed:
+
+| Finding | What the room would have seen |
+|---|---|
+| **A wifi drop showed a green light for 46 seconds** while every tap was silently lost — packets stop with no TCP reset, which is exactly the iPad case, and socket.io doesn't notice until its ping cycle expires. | Now red in ~2s, and taps made during the outage are **queued and land on recovery** instead of vanishing. Verified with network emulation. |
+| Taps made while disconnected were flushed by socket.io *before* `hello`, so the server rejected them as "not the host" — invisibly, because nothing asked for an acknowledgement. | Held in our own queue, flushed inside the hello ack. |
+| **Keyboard awards were hard-coded to ±1**, so on a 2-point round the keyboard gave 1, on a 500-point Jeopardy square it gave 1, and with Deduct switched on it *added*. This is the wifi-down fallback path. | Uses the round's real points and honours the deduct switch. |
+| `shift` to deduct was dead code — with shift held, Digit1 arrives as `!`, so the regex never matched. | Matched on `e.code`. |
+| **Arrow keys were eaten by the round picker**: pick a round, press the arrow you use for "next question", and the round changed instead — twice meant two rounds skipped. On a board an arrow threw the open clue away. | Focus is released on change; arrows are gated on what the transport allows. |
+| Typing a player's name played the game — keys fired straight through the open sheet, awarding points and flashing the answer on the TV. | Shortcuts suspended while a sheet is open. |
+| **A long prompt was unreadable on both screens.** The centred-flex overflow trap put the first line 119px above an unscrollable panel — the host could not read the question they were about to ask. | `justify-content: safe center`. Verified at the 1280×800 fallback size. |
+| **The TV silently dropped players off the leaderboard** — with a big roster the strip clipped, and because it is sorted by score, the people who vanished were the ones at the bottom. | Rows scale down instead. Verified with 15 entrants: none clipped. |
+| A swipe that merely began on a face scored a point on touch (implicit pointer capture means `pointerleave` never fires). | Cancelled past 40px of travel; a real tap and a long-press still work. |
+| The score keypad sprang back open by itself after an Undo; a fixed avatar never recovered; the passphrase gate accused the host of a wrong passphrase before they had typed one; board squares were 80px against a stated 88pt minimum. | All fixed. |
+
+Confirmed solid by the same review: rapid tapping (5 taps = 5 points, mouse and
+touch), server kill and return (frozen screen, not blank, then a clean resync),
+display reconnect, no tile reordering under a finger, the fix-it-by-hand
+invariant in the worst case it could construct, and layout at five viewport
+sizes.
+
+**Still open, from that review:** a paused countdown drifts between host and TV
+(the fix is a server payload change — `TimerView` needs a `remainingMs`); a
+broken round image leaves a silent gap on both screens; the keypad's backspace
+discards the score rather than editing it; deduct mode survives a round change;
+Escape closes nothing; and there is no favicon, so the iPad home-screen
+bookmark the checklist asks for has no icon.
 
 ## Gotchas already paid for
 
@@ -179,11 +210,10 @@ docs/            RUNDAY.md (the checklist), this file
 4. The open minors from the first review (table above), if anyone is bored.
 5. Only then: Phase 3 (self-join, device submission, extracted plugin SDK).
 
-A note on the reviews: a third pass, driving both views in a real browser for
-live-play failure modes (rapid taps, connection loss mid-round, long names,
-sheets open while state changes), was still running when work stopped. Its
-findings are not in this document. If you are picking this up, that is the one
-piece of known-unread feedback.
+All three reviews have now reported and been acted on. The remaining known
+issues are listed at the end of the client review section above — none of them
+stops a party, and the two worth doing first are the paused-timer drift (needs
+a server payload change) and a favicon.
 
 ## What not to build
 

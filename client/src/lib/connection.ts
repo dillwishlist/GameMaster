@@ -22,16 +22,50 @@ export function useConnection<T>(role: ClientRole, channel: string, passphrase?:
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  /** Set once `hello` has been acknowledged. Nothing may be sent before it. */
+  const greeted = useRef(false);
+  /**
+   * Commands the host issued while the link was down or unproven. Held here
+   * rather than in socket.io's own send buffer, which flushes on CONNECT —
+   * before `hello` runs — so the server rejects the lot as "not the host" and,
+   * because nothing asks for an acknowledgement, does so invisibly.
+   */
+  const queued = useRef<{ name: string; args: unknown[] }[]>([]);
 
   useEffect(() => {
     const socket = io({ transports: ['websocket', 'polling'] });
     socketRef.current = socket;
 
+    // `args` is spread rather than passed as one value: `undo` and friends take
+    // their acknowledgement as the *first* argument, so handing them an explicit
+    // `undefined` payload would shift the callback out of the server's reach and
+    // silently break them — which is how the undo button died once already.
+    const send = (name: string, args: unknown[]) => {
+      // A tap that goes unacknowledged is a point that never happened, so the
+      // host has to see it. 2s is long enough not to cry wolf on a slow phone
+      // and short enough that they notice before the next question.
+      socket.timeout(2000).emit(name, ...args, (err: unknown, res?: { ok?: boolean }) => {
+        if (err) {
+          // The socket still believes it is connected — this is the wifi
+          // dropping without a TCP reset, which is exactly the iPad case.
+          setStatus('offline');
+          return;
+        }
+        setStatus(res && res.ok === false ? 'offline' : 'ready');
+      });
+    };
+
     const sayHello = () => {
+      greeted.current = false;
       socket.emit('hello', { role, passphrase }, (res: { ok: boolean; error?: string }) => {
         if (res?.ok) {
+          greeted.current = true;
           setStatus('ready');
           setError(null);
+          // Only now is the server willing to hear from us.
+          const pending = queued.current;
+          queued.current = [];
+          for (const item of pending) send(item.name, item.args);
         } else {
           setStatus('denied');
           setError(res?.error ?? 'Rejected by server');
@@ -40,23 +74,46 @@ export function useConnection<T>(role: ClientRole, channel: string, passphrase?:
     };
 
     socket.on('connect', sayHello);
-    socket.on('disconnect', () => setStatus('offline'));
+    socket.on('disconnect', () => {
+      greeted.current = false;
+      setStatus('offline');
+    });
     socket.on('connect_error', () => setStatus('offline'));
-    socket.on(channel, (next: T) => setState(next));
+    socket.on(channel, (next: T) => {
+      setState(next);
+      // Any inbound push proves the link is alive. Without this the indicator
+      // can stay red after the wifi comes back, because the acknowledgement it
+      // was waiting on had already timed out and will never arrive.
+      setStatus((current) => (current === 'denied' ? current : 'ready'));
+    });
 
     return () => {
       socket.close();
       socketRef.current = null;
+      greeted.current = false;
+      queued.current = [];
     };
   }, [role, channel, passphrase]);
 
-  const dispatch = useCallback((event: GameEventInput) => {
-    socketRef.current?.emit('dispatch', event);
+  const enqueue = useCallback((name: string, args: unknown[]) => {
+    const socket = socketRef.current;
+    if (!socket || !socket.connected || !greeted.current) {
+      queued.current.push({ name, args });
+      setStatus('offline');
+      return;
+    }
+    socket.timeout(2000).emit(name, ...args, (err: unknown, res?: { ok?: boolean }) => {
+      if (err) {
+        setStatus('offline');
+        return;
+      }
+      setStatus(res && res.ok === false ? 'offline' : 'ready');
+    });
   }, []);
 
-  const command = useCallback((name: 'undo' | 'redo' | 'resetSession') => {
-    socketRef.current?.emit(name);
-  }, []);
+  const dispatch = useCallback((event: GameEventInput) => enqueue('dispatch', [event]), [enqueue]);
+
+  const command = useCallback((name: 'undo' | 'redo' | 'resetSession') => enqueue(name, []), [enqueue]);
 
   return { state, status, error, dispatch, command };
 }
