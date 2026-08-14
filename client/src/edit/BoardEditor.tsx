@@ -1,19 +1,18 @@
 /**
  * The `board` grid, edited as a grid: categories across the top, clues down.
  *
- * Two things make this different from the other two round types.
+ * A board addresses its questions by column and row rather than by a flat
+ * index, so it has its own half of the edit API — `setClueField`, `addClue`,
+ * `moveCategory` and the rest. They splice the same YAML nodes the item
+ * operations do, which is what keeps a comment written beside one clue when the
+ * clue next to it is reworded.
  *
- * 1. A board's questions live under `categories[].clues[]`, not `items`, and
- *    the edit API's item operations only address `items`. So every change here
- *    is one `setRoundField` carrying the whole `categories` block. That is also
- *    why comments written *inside* a board grid by hand do not survive an edit
- *    made here, while comments elsewhere in the file do — the block is
- *    regenerated, the rest of the document is not touched.
- * 2. Adding or removing a clue is a structural change, and the server refuses a
- *    hot reload that restructures a round already under way. `setRoundField` is
- *    not on the API's blocked list, so nothing would stop the save — it is this
- *    form that has to stop it, or the host saves happily and the game quietly
- *    keeps playing the old file.
+ * Adding, removing or reordering anything here is structural, and the server
+ * refuses a structural change to a round that is on the TV — squares are
+ * addressed by position, so moving one would move the round underneath itself
+ * and could put an already-played answer on the screen. This form disables
+ * those controls for the same reason, so the host is told before they type
+ * rather than after they save.
  */
 
 import { useState } from 'react';
@@ -21,7 +20,7 @@ import { NumberField, RowTools, TextField } from './Fields.js';
 import { MediaPicker } from './MediaPicker.js';
 import { previewMedia } from './ItemEditor.js';
 import { categoriesOf } from './types.js';
-import type { BoardCategory, EditOp, EditRound, PreviewPayload } from './types.js';
+import type { EditOp, EditRound, PreviewPayload } from './types.js';
 
 /** The schema's limits, so the host is never offered an edit that cannot save. */
 const MAX_COLUMNS = 8;
@@ -48,20 +47,13 @@ export function BoardEditor({
   const categories = categoriesOf(round);
   const [selected, setSelected] = useState<Cell | null>(null);
 
-  const write = (next: BoardCategory[]) =>
-    edit({ op: 'setRoundField', roundId: round.id, field: 'categories', value: next });
-
-  /** Every mutation is "clone, change one thing, write the block back". */
-  const mutate = (fn: (draft: BoardCategory[]) => void) => {
-    const draft = structuredClone(categories) as BoardCategory[];
-    fn(draft);
-    write(draft);
-  };
+  // A deleted square leaves the panel below pointing at nothing.
+  const current = selected && categories[selected.category]?.clues?.[selected.clue] ? selected : null;
+  const clue = current ? categories[current.category].clues![current.clue] : null;
+  const setClue = (path: string[], value: unknown) =>
+    current && edit({ op: 'setClueField', roundId: round.id, category: current.category, clue: current.clue, path, value });
 
   const rows = Math.max(1, ...categories.map((c) => c.clues?.length ?? 0));
-  const current =
-    selected && categories[selected.category]?.clues?.[selected.clue] ? selected : null;
-  const clue = current ? categories[current.category].clues![current.clue] : null;
 
   return (
     <div className="board-editor">
@@ -80,11 +72,7 @@ export function BoardEditor({
                 className="field-input"
                 value={String(category.name ?? '')}
                 placeholder="Category"
-                onChange={(e) =>
-                  mutate((draft) => {
-                    draft[c].name = e.target.value;
-                  })
-                }
+                onChange={(e) => edit({ op: 'setCategoryName', roundId: round.id, category: c, value: e.target.value })}
               />
               <RowTools
                 onDelete={
@@ -92,9 +80,7 @@ export function BoardEditor({
                     ? () => {
                         if (!confirm(`Delete the whole "${category.name ?? 'unnamed'}" column and its clues?`)) return;
                         setSelected(null);
-                        mutate((draft) => {
-                          draft.splice(c, 1);
-                        });
+                        edit({ op: 'removeCategory', roundId: round.id, index: c });
                       }
                     : undefined
                 }
@@ -107,11 +93,10 @@ export function BoardEditor({
                   className="mini"
                   title="Move this column left"
                   disabled={round.inPlay || c === 0}
-                  onClick={() =>
-                    mutate((draft) => {
-                      [draft[c - 1], draft[c]] = [draft[c], draft[c - 1]];
-                    })
-                  }
+                  onClick={() => {
+                    setSelected(null);
+                    edit({ op: 'moveCategory', roundId: round.id, from: c, to: c - 1 });
+                  }}
                 >
                   ‹
                 </button>
@@ -119,11 +104,10 @@ export function BoardEditor({
                   className="mini"
                   title="Move this column right"
                   disabled={round.inPlay || c === categories.length - 1}
-                  onClick={() =>
-                    mutate((draft) => {
-                      [draft[c], draft[c + 1]] = [draft[c + 1], draft[c]];
-                    })
-                  }
+                  onClick={() => {
+                    setSelected(null);
+                    edit({ op: 'moveCategory', roundId: round.id, from: c, to: c + 1 });
+                  }}
                 >
                   ›
                 </button>
@@ -151,13 +135,12 @@ export function BoardEditor({
               className="mini board-add"
               disabled={round.inPlay || (category.clues?.length ?? 0) >= MAX_ROWS}
               onClick={() =>
-                mutate((draft) => {
-                  const clues = draft[c].clues ?? (draft[c].clues = []);
-                  const last = clues[clues.length - 1];
-                  // Values normally step down a column, so guess the next one
-                  // rather than making the host type 100, 200, 300 by hand.
-                  const step = clues.length > 1 ? Number(clues[1].value ?? 200) - Number(clues[0].value ?? 100) : 100;
-                  clues.push({ value: Number(last?.value ?? 0) + (step || 100), prompt: 'New clue' });
+                edit({
+                  op: 'addClue',
+                  roundId: round.id,
+                  category: c,
+                  index: category.clues?.length ?? 0,
+                  clue: { value: nextValue(category.clues), prompt: 'New clue' },
                 })
               }
             >
@@ -171,8 +154,11 @@ export function BoardEditor({
             className="mini board-add-col"
             disabled={round.inPlay}
             onClick={() =>
-              mutate((draft) => {
-                draft.push({ name: 'New category', clues: [{ value: 100, prompt: 'New clue' }] });
+              edit({
+                op: 'addCategory',
+                roundId: round.id,
+                index: categories.length,
+                category: { name: 'New category', clues: [{ value: 100, prompt: 'New clue' }] },
               })
             }
           >
@@ -188,14 +174,28 @@ export function BoardEditor({
               {categories[current.category].name || 'Category'} · {clue.value ?? '—'}
             </span>
             <RowTools
+              onUp={
+                current.clue > 0
+                  ? () => {
+                      edit({ op: 'moveClue', roundId: round.id, category: current.category, from: current.clue, to: current.clue - 1 });
+                      setSelected({ category: current.category, clue: current.clue - 1 });
+                    }
+                  : undefined
+              }
+              onDown={
+                current.clue < (categories[current.category].clues?.length ?? 0) - 1
+                  ? () => {
+                      edit({ op: 'moveClue', roundId: round.id, category: current.category, from: current.clue, to: current.clue + 1 });
+                      setSelected({ category: current.category, clue: current.clue + 1 });
+                    }
+                  : undefined
+              }
               onDelete={
                 (categories[current.category].clues?.length ?? 0) > 1
                   ? () => {
                       if (!confirm('Delete this clue?')) return;
                       setSelected(null);
-                      mutate((draft) => {
-                        draft[current.category].clues!.splice(current.clue, 1);
-                      });
+                      edit({ op: 'removeClue', roundId: round.id, category: current.category, index: current.clue });
                     }
                   : undefined
               }
@@ -224,26 +224,16 @@ export function BoardEditor({
               label="Value"
               min={1}
               value={typeof clue.value === 'number' ? clue.value : null}
-              onChange={(v) =>
-                mutate((draft) => {
-                  const target = draft[current.category].clues![current.clue];
-                  if (v === '') delete target.value;
-                  else target.value = v;
-                })
-              }
+              onChange={(v) => setClue(['value'], v)}
             />
             <label className="field narrow wager-field">
               <span className="field-label">Daily double</span>
               <input
                 type="checkbox"
                 checked={Boolean(clue.wager)}
-                onChange={(e) =>
-                  mutate((draft) => {
-                    const target = draft[current.category].clues![current.clue];
-                    if (e.target.checked) target.wager = true;
-                    else delete target.wager;
-                  })
-                }
+                // Unticking removes the key rather than writing `wager: false`,
+                // which would read as a deliberate setting to the next human.
+                onChange={(e) => setClue(['wager'], e.target.checked ? true : '')}
               />
               <span className="field-hint">The TV never shows which square it is.</span>
             </label>
@@ -254,11 +244,7 @@ export function BoardEditor({
             required
             multiline
             value={clue.prompt === undefined ? '' : String(clue.prompt)}
-            onChange={(v) =>
-              mutate((draft) => {
-                draft[current.category].clues![current.clue].prompt = v;
-              })
-            }
+            onChange={(v) => setClue(['prompt'], v)}
           />
 
           <div className="field-row">
@@ -266,26 +252,14 @@ export function BoardEditor({
               label="Answer"
               multiline
               value={clue.answer === undefined ? '' : String(clue.answer)}
-              onChange={(v) =>
-                mutate((draft) => {
-                  const target = draft[current.category].clues![current.clue];
-                  if (v === '') delete target.answer;
-                  else target.answer = v;
-                })
-              }
+              onChange={(v) => setClue(['answer'], v)}
               hint="Held back from the TV until you tap Reveal."
             />
             <TextField
               label="Note"
               multiline
               value={clue.note === undefined ? '' : String(clue.note)}
-              onChange={(v) =>
-                mutate((draft) => {
-                  const target = draft[current.category].clues![current.clue];
-                  if (v === '') delete target.note;
-                  else target.note = v;
-                })
-              }
+              onChange={(v) => setClue(['note'], v)}
               hint="Host-only."
             />
           </div>
@@ -297,29 +271,23 @@ export function BoardEditor({
               value={clue.media?.image}
               assets={assets}
               passphrase={passphrase}
-              onChange={(ref) =>
-                mutate((draft) => {
-                  const target = draft[current.category].clues![current.clue];
-                  const media = { ...(target.media ?? {}) };
-                  if (ref === '') delete media.image;
-                  else media.image = ref;
-                  if (Object.keys(media).length === 0) delete target.media;
-                  else target.media = media;
-                })
-              }
+              onChange={(ref) => setClue(['media', 'image'], ref)}
             />
           </div>
         </article>
       ) : (
         <p className="hint">Pick a square to edit its clue.</p>
       )}
-
-      {/* Said out loud, because it is the one place this editor gives something
-          up that the rest of the file keeps. */}
-      <p className="field-hint">
-        A board is written back as one block, so any edit here re-formats the whole grid and drops comments written
-        inside it by hand. The rest of the file — and its comments — are left alone.
-      </p>
     </div>
   );
+}
+
+/**
+ * Values normally step down a column, so a new square guesses the next one
+ * rather than making the host type 100, 200, 300 by hand.
+ */
+function nextValue(clues: { value?: number }[] | undefined): number {
+  if (!clues || clues.length === 0) return 100;
+  const step = clues.length > 1 ? Number(clues[1].value ?? 200) - Number(clues[0].value ?? 100) : 100;
+  return Number(clues[clues.length - 1].value ?? 0) + (step || 100);
 }

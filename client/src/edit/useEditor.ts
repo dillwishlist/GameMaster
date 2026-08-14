@@ -174,6 +174,10 @@ function keyOf(op: EditOp): string | null {
       return `round:${op.roundId}:${op.field}`;
     case 'setItemField':
       return `item:${op.roundId}:${op.index}:${op.path.join('.')}`;
+    case 'setCategoryName':
+      return `category:${op.roundId}:${op.category}`;
+    case 'setClueField':
+      return `clue:${op.roundId}:${op.category}:${op.clue}:${op.path.join('.')}`;
     default:
       return null;
   }
@@ -251,6 +255,56 @@ function applyLocally(model: ContentModel, op: EditOp): ContentModel {
         return next;
       });
 
+    // A board's questions live two levels down, so the same four moves happen
+    // twice: once for the columns, once for the clues inside one column.
+    case 'setCategoryName':
+      return mapCategories(model, op.roundId, (categories) =>
+        categories.map((category, i) => (i === op.category ? { ...category, name: op.value } : category)),
+      );
+
+    case 'addCategory':
+      return mapCategories(model, op.roundId, (categories) => {
+        const next = [...categories];
+        next.splice(clamp(op.index, next.length), 0, op.category);
+        return next;
+      });
+
+    case 'removeCategory':
+      return mapCategories(model, op.roundId, (categories) => categories.filter((_, i) => i !== op.index));
+
+    case 'moveCategory':
+      return mapCategories(model, op.roundId, (categories) => {
+        const next = [...categories];
+        const [category] = next.splice(op.from, 1);
+        if (category === undefined) return categories;
+        next.splice(clamp(op.to, next.length), 0, category);
+        return next;
+      });
+
+    case 'setClueField':
+      return mapClues(model, op.roundId, op.category, (clues) =>
+        clues.map((clue, i) => (i === op.clue ? setPath(clue, op.path, op.value) : clue)),
+      );
+
+    case 'addClue':
+      return mapClues(model, op.roundId, op.category, (clues) => {
+        const next = [...clues];
+        next.splice(clamp(op.index, next.length), 0, op.clue);
+        return next;
+      });
+
+    case 'removeClue':
+      return mapClues(model, op.roundId, op.category, (clues) => clues.filter((_, i) => i !== op.index));
+
+    case 'moveClue':
+      return mapClues(model, op.roundId, op.category, (clues) => {
+        const next = [...clues];
+        const [clue] = next.splice(op.from, 1);
+        if (clue === undefined) return clues;
+        next.splice(clamp(op.to, next.length), 0, clue);
+        return next;
+      });
+
     default:
       return model;
   }
@@ -269,6 +323,34 @@ function mapItems(
     const items = Array.isArray(round.config.items) ? (round.config.items as Record<string, unknown>[]) : [];
     return { ...round, config: { ...round.config, items: fn(items) } };
   });
+}
+
+function mapCategories(
+  model: ContentModel,
+  roundId: string,
+  fn: (categories: Record<string, unknown>[]) => Record<string, unknown>[],
+): ContentModel {
+  return mapRound(model, roundId, (round) => {
+    const categories = Array.isArray(round.config.categories)
+      ? (round.config.categories as Record<string, unknown>[])
+      : [];
+    return { ...round, config: { ...round.config, categories: fn(categories) } };
+  });
+}
+
+function mapClues(
+  model: ContentModel,
+  roundId: string,
+  category: number,
+  fn: (clues: Record<string, unknown>[]) => Record<string, unknown>[],
+): ContentModel {
+  return mapCategories(model, roundId, (categories) =>
+    categories.map((entry, i) => {
+      if (i !== category) return entry;
+      const clues = Array.isArray(entry.clues) ? (entry.clues as Record<string, unknown>[]) : [];
+      return { ...entry, clues: fn(clues) };
+    }),
+  );
 }
 
 function setRoundField(round: EditRound, field: string, value: unknown): EditRound {

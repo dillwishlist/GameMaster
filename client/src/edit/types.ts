@@ -3,7 +3,7 @@
  *
  * Deliberately a hand-written mirror of `server/editor/contentDoc.ts` rather
  * than an import: the client bundle must not reach into the server tree, where
- * that file pulls in `node:fs` and `node:crypto`. These nine operations are the
+ * that file pulls in `node:fs` and `node:crypto`. These operations are the
  * whole API — if the server's union grows, this one follows it by hand.
  */
 
@@ -17,7 +17,18 @@ export type EditOp =
   | { op: 'setItemField'; roundId: string; index: number; path: string[]; value: unknown }
   | { op: 'addItem'; roundId: string; index: number; item: Record<string, unknown> }
   | { op: 'removeItem'; roundId: string; index: number }
-  | { op: 'moveItem'; roundId: string; from: number; to: number };
+  | { op: 'moveItem'; roundId: string; from: number; to: number }
+  /* A board addresses a clue by column and row rather than by a flat index,
+     and these splice the same nodes the item operations do — so the comments
+     around a clue survive an edit to the clue beside it. */
+  | { op: 'setCategoryName'; roundId: string; category: number; value: string }
+  | { op: 'addCategory'; roundId: string; index: number; category: Record<string, unknown> }
+  | { op: 'removeCategory'; roundId: string; index: number }
+  | { op: 'moveCategory'; roundId: string; from: number; to: number }
+  | { op: 'setClueField'; roundId: string; category: number; clue: number; path: string[]; value: unknown }
+  | { op: 'addClue'; roundId: string; category: number; index: number; clue: Record<string, unknown> }
+  | { op: 'removeClue'; roundId: string; category: number; index: number }
+  | { op: 'moveClue'; roundId: string; category: number; from: number; to: number };
 
 export interface EntrantSeed {
   id: string;

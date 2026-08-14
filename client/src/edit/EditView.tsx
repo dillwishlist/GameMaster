@@ -25,13 +25,14 @@ import '../styles/edit.css';
 export function EditView() {
   const { passphrase, save: savePassphrase, required } = usePassphrase();
   const editor = useEditor(passphrase);
-  const preview = usePreviewChannel(passphrase);
   /**
-   * The host channel, for the two things only the live server knows: whether a
-   * television is actually connected to preview onto, and whether the round
-   * being edited has gone live since the file was loaded.
+   * The host channel. It carries the two things only the live server knows —
+   * whether a television is connected to preview onto, and whether the round
+   * being edited has gone live since the file was loaded — and it is the socket
+   * the preview goes out on.
    */
-  const { state: host, status } = useConnection<HostState>('host', 'host', passphrase);
+  const { state: host, status, send } = useConnection<HostState>('host', 'host', passphrase);
+  const preview = usePreviewChannel(send);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const model = editor.model;
