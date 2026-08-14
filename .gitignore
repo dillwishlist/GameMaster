@@ -1,0 +1,8 @@
+node_modules/
+dist/
+
+# Session logs. Real games, real scores — but per-machine, not source.
+data/
+
+.DS_Store
+*.log

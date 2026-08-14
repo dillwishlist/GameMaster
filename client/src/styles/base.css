@@ -1,0 +1,175 @@
+:root {
+  --bg: #12141a;
+  --panel: #1c1f28;
+  --panel-2: #262a36;
+  --line: #333949;
+  --text: #f2f4f8;
+  --dim: #99a0b3;
+  --accent: #2f7de6;
+  --danger: #e6402f;
+  --ok: #22a06b;
+  --radius: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+  /* No text selection anywhere: this is a control surface, and a stray
+     long-press that selects a prompt is a tap that did not award a point. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+input,
+select {
+  -webkit-user-select: text;
+  user-select: text;
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.btn {
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+  min-height: 48px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.btn-danger {
+  background: var(--danger);
+  border-color: transparent;
+}
+
+.btn.big {
+  min-height: 64px;
+  font-size: 19px;
+}
+
+.hint {
+  color: var(--dim);
+  font-size: 14px;
+}
+
+code {
+  background: var(--panel-2);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+
+/* Avatars ------------------------------------------------------------------ */
+
+.avatar {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid transparent;
+  display: grid;
+  place-items: center;
+  background: var(--panel-2);
+}
+
+.avatar-initial {
+  font-weight: 800;
+  font-size: clamp(18px, 4vw, 40px);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* Sheets (setup panel, keypad) --------------------------------------------- */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 20;
+}
+
+.sheet {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 20px;
+  width: min(720px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+}
+
+/* Chooser / play / gate ---------------------------------------------------- */
+
+.chooser,
+.play,
+.gate,
+.host-loading {
+  min-height: 100%;
+  display: grid;
+  place-content: center;
+  gap: 16px;
+  text-align: center;
+  padding: 24px;
+}
+
+.gate {
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+.gate-error {
+  color: var(--danger);
+}
+
+.play-note {
+  max-width: 34ch;
+  color: var(--dim);
+  line-height: 1.5;
+}
+
+.play-score {
+  font-size: 32px;
+}
+
+.chooser a {
+  color: var(--accent);
+  font-size: 22px;
+}

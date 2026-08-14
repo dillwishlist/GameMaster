@@ -1,0 +1,34 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { HostView } from './host/HostView.js';
+import { DisplayView } from './display/DisplayView.js';
+import { PlayView } from './play/PlayView.js';
+import './styles/base.css';
+
+/**
+ * Three views, one bundle, routed off the path. No router library: there are
+ * exactly three routes and none of them navigate to each other during play.
+ */
+function App() {
+  const path = window.location.pathname;
+  if (path.startsWith('/display')) return <DisplayView />;
+  if (path.startsWith('/play')) return <PlayView />;
+  if (path.startsWith('/host')) return <HostView />;
+  return <Chooser />;
+}
+
+function Chooser() {
+  return (
+    <div className="chooser">
+      <h1>GameMaster</h1>
+      <a href="/host">Host</a>
+      <a href="/display">Display</a>
+    </div>
+  );
+}
+
+createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);
