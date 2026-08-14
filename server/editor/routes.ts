@@ -23,7 +23,7 @@ import type { Express, Request, Response } from 'express';
 import express from 'express';
 import { ContentError, parseContent, type GameContent } from '../content.js';
 import { knownRoundTypeIds } from '../roundTypes/index.js';
-import { applyOps, EditError, hashOf, loadContentDoc, saveContentDoc, type EditOp } from './contentDoc.js';
+import { applyOps, EditError, hashOf, loadContentDoc, saveContentDoc, serialise, type EditOp } from './contentDoc.js';
 
 export interface EditorDeps {
   contentFile: string;
@@ -117,7 +117,10 @@ export function registerEditorRoutes(app: Express, deps: EditorDeps): void {
 
       // The gate: serialise, validate, and only then write. `parseContent`
       // is the same function the server calls when it loads the game.
-      const text = current.doc.toString({ lineWidth: 0 });
+      // The exact bytes that will be written, so the hash handed back matches
+      // the file. Validating one string and saving a different one would make
+      // the editor 409 against its own previous save.
+      const text = serialise(current.doc);
       let validated: GameContent;
       try {
         validated = parseContent(text, deps.contentFile);
@@ -144,8 +147,8 @@ export function registerEditorRoutes(app: Express, deps: EditorDeps): void {
         return;
       }
 
-      saveContentDoc(deps.contentFile, current.doc);
-      res.json({ ...model(validated, hashOf(text), deps), saved: true });
+      const written = saveContentDoc(deps.contentFile, current.doc);
+      res.json({ ...model(validated, hashOf(written), deps), saved: true });
     } catch (err) {
       const status = err instanceof EditError ? 400 : 500;
       res.status(status).json({ error: String(err instanceof Error ? err.message : err) });

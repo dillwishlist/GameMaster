@@ -161,6 +161,17 @@ rounds:
     expect(YAML.parse(readFileSync(file, 'utf8')).rounds[0].categories).toHaveLength(2);
   });
 
+  it('leaves no whitespace-only line behind when a category moves', () => {
+    const file = scratch(readFileSync(REAL_BOARD, 'utf8'));
+    const after = edited(file, [{ op: 'moveCategory', roundId: 'family-board', from: 0, to: 1 }]);
+
+    // Splicing a node that had a blank line before it can strand that line as
+    // bare indentation: invisible, harmless to the parser, and a diff everyone
+    // then argues about.
+    const stray = after.split('\n').filter((line) => line.length > 0 && line.trim() === '');
+    expect(stray).toEqual([]);
+  });
+
   it('refuses a clue or category that is not there', () => {
     const file = scratch(board);
     expect(() => edited(file, [{ op: 'removeClue', roundId: 'family-board', category: 0, index: 9 }])).toThrow(EditError);
@@ -284,6 +295,24 @@ rounds:
     // Ops are applied to the in-memory document and only written on success, so
     // a bad edit halfway through a batch cannot leave the file half-updated.
     expect(readFileSync(file, 'utf8')).toBe(before);
+  });
+
+  it('does not tidy whitespace that is actually content', () => {
+    // Inside a block scalar, a line of spaces *deeper* than the block indent is
+    // part of the value. Blanking it would silently change a prompt, so the
+    // tidy-up stands down whenever the document contains a block scalar.
+    const spaced = ' '.repeat(12);
+    const file = scratch(
+      'title: Test\nrounds:\n  - id: r\n    type: manual\n    title: Round\n    items:\n      - prompt: |\n          Line one\n' +
+        spaced +
+        '\n          Line three\n',
+    );
+    const before = YAML.parse(readFileSync(file, 'utf8')).rounds[0].items[0].prompt;
+    const { doc } = loadContentDoc(file);
+    const after = saveContentDoc(file, doc);
+
+    expect(before).toBe('Line one\n  \nLine three\n');
+    expect(YAML.parse(after).rounds[0].items[0].prompt).toBe(before);
   });
 
   it('produces a file the real loader still accepts', () => {

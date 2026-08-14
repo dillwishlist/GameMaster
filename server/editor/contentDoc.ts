@@ -80,12 +80,37 @@ export function hashOf(text: string): string {
 }
 
 /**
+ * Serialise, and tidy one artefact of moving nodes around.
+ *
+ * Splicing a node that had a blank line before it can leave that line behind as
+ * indentation — a line of nothing but spaces. It parses identically, but it
+ * shows up in `git diff`, and plenty of editors strip it on save, which then
+ * shows up as a second spurious diff. Blanking those lines is safe *unless* the
+ * document has a block scalar, where a line of spaces can be real content, so
+ * in that case it is left exactly as the serialiser produced it.
+ */
+export function serialise(doc: YAML.Document): string {
+  const text = doc.toString(SERIALISE);
+  return hasBlockScalar(doc) ? text : text.replace(/^[ \t]+$/gm, '');
+}
+
+function hasBlockScalar(doc: YAML.Document): boolean {
+  let found = false;
+  YAML.visit(doc, {
+    Scalar(_key, node) {
+      if (node.type === 'BLOCK_LITERAL' || node.type === 'BLOCK_FOLDED') found = true;
+    },
+  });
+  return found;
+}
+
+/**
  * Write via a temp file and a rename, the same way the event log does. A crash
  * halfway through a save must not leave a half-written content file — that is
  * the one file the live game reads.
  */
 export function saveContentDoc(file: string, doc: YAML.Document): string {
-  const text = doc.toString(SERIALISE);
+  const text = serialise(doc);
   const temp = `${file}.tmp`;
   writeFileSync(temp, text);
   renameSync(temp, file);
