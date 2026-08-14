@@ -34,7 +34,10 @@ npm run check      # typecheck + unit tests + end-to-end smoke test
 | YAML content, hot reload, line-referenced errors | Done |
 | Host view usable on the laptop (wifi-down fallback) | Done |
 | Timers | Server-side done; no host button to start one yet |
-| `board` / Jeopardy round type | See "In flight" |
+| `board` / Jeopardy round type, with wagers | Done |
+| Sound cues (synthesized, no downloads) | Done |
+| Session replay / export (`npm run replay`) | Done |
+| CI on Node 20 and 22 | Done |
 | Player self-join, device submission | Not built — Phase 3, expected to be cut |
 | Extracted plugin SDK | Not built — Phase 3 |
 
@@ -56,6 +59,33 @@ These are load-bearing. A change that violates one is wrong even if it passes.
 6. **Reducers never read the clock.** Use `ctx.now` (the event's timestamp).
    Replay determinism is what makes undo and crash recovery work.
 
+## The adversarial review, and what came of it
+
+The Phase 0 core was reviewed specifically for "what fails mid-party, with no
+do-over". Findings and their resolution, so nobody re-litigates them:
+
+| # | Finding | Status |
+|---|---|---|
+| 1 | **A single malformed event permanently bricked the log.** `append` persisted before reducing, so an event the reducer rejected was written anyway — after which every undo threw and the server would not restart. Confirmed with a repro. | **Fixed.** Reduce first, write second. Plus a tolerant rebuild so a log that already contains one still opens. |
+| 2 | **A throw in a socket handler killed the process.** Only `dispatch` was guarded; socket.io does not contain listener exceptions. | **Fixed.** All handlers wrapped, `pushAll` moved inside the content-reload try, and process-level guards added. |
+| 3 | **A one-character YAML typo silently zeroed the TV scoreboard.** Points are recomputed from the log, so a round that stops resolving takes its points with it — and a round-scoped validation failure doesn't even set `contentError`. | **Fixed.** A reload that would orphan an already-played round is refused, with the reason on the host view. |
+| 4 | **Unknown socket roles failed open to `host`**, handing unrevealed answers to any client that sent a typo. | **Fixed.** Fails closed to `display`; re-`hello` now leaves the previous room. |
+| 6 | Same-second session ids sorted such that resume picked the *older* log. | **Fixed.** Sorted by mtime. |
+| 7 | The header comment promised an fsync that `appendFileSync` doesn't do, and `rewrite` could lose the whole log. | **Fixed.** Real fsync on append, temp-file-and-rename for rewrite. |
+| 5 | `manual` offered a Reveal button for an image-only item, but `sanitizeDisplayView` cannot hide `media` — the room sees it the whole time. | **Fixed** (reveal no longer advertised for media alone). The sanitizer's contract is now documented: it sees the top-level `answer` and **top-level** `extra` keys only — `delete` is shallow, so secrets nested inside an `extra` sub-object *will* ship to the TV. |
+| 8 | Minors: awards emitted from `init` are dropped; `ENTRANT_REMOVE` leaves a `lastDelta` entry; `reset()` has a dead listener-copy loop. | **Open, deliberately.** None reachable by current round types; all noted here rather than fixed under time pressure. |
+
+Verified clean by the same review: replay determinism, reducer purity (no
+mutation, including nested `roundStates`), undo/redo semantics including across
+round switches, crash recovery from torn and shortened logs, authorization on
+every mutating socket command, and memory growth over a session.
+
+One structural note from it worth keeping: the core hands a plugin its own
+`roundStates[id]` without a defensive copy, so a round type *could* mutate
+shared state. None do. If a future one does, `replay` would mask it and only
+the incremental path would diverge — which is the nastiest possible bug shape
+here. Worth a line in the plugin contract if a third-party type ever lands.
+
 ## Gotchas already paid for
 
 Things that cost time once. Don't rediscover them.
@@ -64,6 +94,10 @@ Things that cost time once. Don't rediscover them.
   so `f()` never runs. This silently disabled the undo button — the host view
   emits without an acknowledgement callback. Do the work on its own line, then
   acknowledge. Unit tests did not catch it; `npm run smoke` did.
+- **The server serves `dist/client`, not source.** After changing anything under
+  `client/`, run `npm run build` or you will be testing the previous bundle and
+  concluding, wrongly, that your feature doesn't render. `npm run dev` avoids
+  this; `npm start` rebuilds.
 - **Positional `grid-template-rows` breaks when a child renders conditionally.**
   The host layout has optional error banners, so the flexible row landed on the
   wrong child. The host is a flex column now; keep it that way.
@@ -104,24 +138,6 @@ tests/           game, session, content
 docs/            RUNDAY.md (the checklist), this file
 ```
 
-## In flight
-
-Four parallel tracks were started after Phase 0 landed. Each owns a disjoint
-set of files; none of them commit — commits are made centrally after review.
-
-1. **`board` / Jeopardy round type** — server type, host and display grids,
-   sample `content/jeopardy.yaml`, tests. Wagers are a stretch goal.
-2. **CI** — `.github/workflows/ci.yml` running typecheck, tests, smoke and
-   build on Node 20 and 22, plus a PR template.
-3. **Session replay/export** — `server/replay.ts` + `scripts/replay.mjs`,
-   turning a finished log into a readable transcript and final scores.
-4. **Sound cues and the content guide** — synthesized WAV cues, `docs/CONTENT.md`
-   for the quizmaster, `docs/template.yaml`.
-
-If this document still says "in flight" and the work is not in the repo, the
-run was interrupted: check `git status`, keep what passes `npm run check`, and
-discard the rest.
-
 ## What to do next, in order
 
 1. **Rehearse Phase 0 end-to-end with real content and a second person.** This
@@ -130,9 +146,10 @@ discard the rest.
 2. Collect the actual content — photos, trivia, the wedding pictures. This runs
    through five households and it is the real critical path. Placeholders exist
    so the game is playable without it; a great game needs it.
-3. Finish or land the four tracks above.
-4. Host-side timer controls (start/stop a countdown for a charades round). The
-   server side and the display countdown already exist.
+3. **Host-side timer controls** — a start/stop button for a countdown on a
+   charades round. The server side, the event, and the display countdown all
+   exist already; only the host button is missing. Smallest useful next task.
+4. The three open minors from the review (table above), if anyone is bored.
 5. Only then: Phase 3 (self-join, device submission, extracted plugin SDK).
 
 ## What not to build

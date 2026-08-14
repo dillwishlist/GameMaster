@@ -111,6 +111,15 @@ export function projectPlayer(state: GameState, content: GameContent, entrantId:
 /**
  * Strip anything the room must not see yet. Always runs — a round type that
  * forgets to withhold its answer is a bug that stops here rather than on the TV.
+ *
+ * It reaches exactly two places, and a round type author must put every secret
+ * in one of them:
+ *   1. the top-level `answer` field;
+ *   2. top-level keys of `extra` named in the round type's `displaySecrets`.
+ * Nothing else is touched. `media` ships to the TV as soon as the item appears,
+ * so a picture can be the question but never the answer, and the `delete` in the
+ * loop below is shallow — a secret nested inside an `extra` sub-object goes
+ * straight to the screen. Hoist it to a top-level `extra` key instead.
  */
 export function sanitizeDisplayView(view: DisplayRoundView, roundType: RoundType<any, any>): DisplayRoundView {
   if (view.revealed) return view;
@@ -129,15 +138,15 @@ function leaderboard(state: GameState, round: Round | null): LeaderboardRow[] {
   return state.entrants
     .filter((e) => e.active)
     .map((e: Entrant): LeaderboardRow => {
-      const delta = state.lastDelta[e.id];
       return {
         id: e.id,
         displayName: e.displayName,
         avatar: e.avatar,
         color: e.color,
         score: e.score,
-        // Only the delta caused by the most recent event flashes.
-        delta: delta && delta.seq === state.seq ? delta.points : undefined,
+        // `reduce` clears lastDelta at the start of every event, so whatever is
+        // in here belongs to the event just applied and to no other.
+        delta: state.lastDelta[e.id],
         dimmed: restrictTo ? !restrictTo.includes(e.id) : false,
       };
     })

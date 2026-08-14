@@ -40,6 +40,14 @@ const content: GameContent = {
         items: [{ prompt: 'Where did they meet?', options: ['Bus', 'Lab'], correct: 'B', answer: '1983' }],
       },
     },
+    {
+      id: 'faces',
+      type: 'manual',
+      title: 'Who Is This?',
+      defaultPoints: 1,
+      // The picture *is* the question: no answer text, nothing left to reveal.
+      config: { items: [{ prompt: 'Who is this?', media: { image: 'photos/1938.jpg' } }] },
+    },
   ],
 };
 
@@ -187,6 +195,17 @@ describe('the display projection boundary', () => {
     expect((sanitized.extra as { options: unknown[] }).options).toHaveLength(2);
   });
 
+  it('offers no Reveal button when the picture is all there is to show', () => {
+    const state = replay(log(...twoPlayers, { type: 'ROUND_SELECT', roundId: 'faces' }), content);
+
+    // The photo is on the TV from the moment the item appears — sanitizing only
+    // reaches `answer` and declared `extra` secrets — so a Reveal button here
+    // would be a button that changes nothing in the room.
+    expect(projectDisplay(state, content).round?.media?.image).toBe('/content/photos/1938.jpg');
+    expect(projectHost(state, content, env).round?.can.reveal).toBe(false);
+    expect(projectHost(state, content, env).round?.can.award).toBe(true);
+  });
+
   it('gives the host the answer immediately, revealed or not', () => {
     const state = replay(log(...twoPlayers, { type: 'ROUND_SELECT', roundId: 'photos' }), content);
     expect(projectHost(state, content, env).round?.answer).toBe('David');
@@ -300,5 +319,47 @@ describe('entrants', () => {
     const board = projectDisplay(state, content).leaderboard;
     expect(board.map((r) => r.id)).toEqual(['swans', 'lucy']);
     expect(board[0].delta).toBe(5);
+  });
+
+  it('stops flashing a score change on the next tap, even one that does nothing', () => {
+    const events = log(
+      ...twoPlayers,
+      { type: 'ROUND_SELECT', roundId: 'photos' },
+      { type: 'ROUND_EVENT', roundId: 'photos', event: { type: 'NEXT' } },
+      { type: 'ROUND_EVENT', roundId: 'photos', event: { type: 'AWARD', entrantId: 'lucy' } },
+      // Already on the last item, so this changes nothing else in the state.
+      { type: 'ROUND_EVENT', roundId: 'photos', event: { type: 'NEXT' } },
+    );
+    const rowFor = (n: number) =>
+      projectDisplay(replay(events.slice(0, n), content), content).leaderboard.find((r) => r.id === 'lucy');
+
+    expect(rowFor(events.length - 1)?.delta).toBe(3);
+    // A dead key press still ends the flash; otherwise +3 sits on the TV for the
+    // rest of the party.
+    expect(rowFor(events.length)?.delta).toBeUndefined();
+    expect(rowFor(events.length)?.score).toBe(3);
+  });
+
+  it('ignores a score smuggled into an entrant patch', () => {
+    const state = replay(
+      log(
+        ...twoPlayers,
+        { type: 'AWARD_POINTS', entrantId: 'lucy', points: 2 },
+        // A host client can send anything; only the four editable fields and
+        // `active` may land, because points move through the award path alone.
+        {
+          type: 'ENTRANT_UPDATE',
+          entrantId: 'lucy',
+          patch: { displayName: 'Lucy B', members: [], score: 99, id: 'swans' },
+        } as GameEventInput,
+      ),
+      content,
+    );
+    const lucy = state.entrants.find((e) => e.id === 'lucy');
+    expect(lucy?.score).toBe(2);
+    expect(lucy?.displayName).toBe('Lucy B');
+    // An empty members list is the host UI saying nothing about the roster.
+    expect(lucy?.members).toEqual([{ name: 'Lucy' }]);
+    expect(state.entrants.map((e) => e.id)).toEqual(['lucy', 'swans']);
   });
 });

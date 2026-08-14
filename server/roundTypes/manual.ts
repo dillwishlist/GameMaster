@@ -175,7 +175,11 @@ export const manualRoundType = defineRoundType<ManualConfig, ManualState>({
       can: {
         prev: state.index > 0,
         next: state.index < config.items.length - 1,
-        reveal: Boolean(item?.answer) || Boolean(item?.media?.image),
+        // Only an `answer` can actually be revealed: the display projection
+        // withholds that field and nothing else, so media is on the TV from the
+        // moment the item appears. Offering Reveal for a picture would promise
+        // the host a change the room will never see.
+        reveal: Boolean(item?.answer),
         award: true,
       },
     };

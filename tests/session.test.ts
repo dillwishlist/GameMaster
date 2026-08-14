@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -130,6 +130,90 @@ describe('session', () => {
     // Points already awarded are recomputed from the new content — the log is
     // the truth, and the log says "award the round default".
     expect(score(session, 'lucy')).toBe(3);
+  });
+
+  it('never lets a bad event reach the log', () => {
+    const dir = tempDir();
+    const session = Session.create(dir, content);
+    session.append({ type: 'ENTRANT_ADD', entrant: { id: 'lucy', displayName: 'Lucy' } });
+    session.append({ type: 'AWARD_POINTS', entrantId: 'lucy', points: 1 });
+
+    // A malformed dispatch — a stale client, or a round type that throws.
+    expect(() =>
+      session.append({ type: 'ROUND_EVENT', roundId: 'photos', event: null as never }),
+    ).toThrow();
+
+    // It must be a no-op the host can tap past, not a permanent entry: if it
+    // were persisted, every later undo and every restart would replay it and
+    // throw, and the server would not come back up.
+    expect(session.eventCount).toBe(3);
+    session.append({ type: 'AWARD_POINTS', entrantId: 'lucy', points: 1 });
+    expect(score(session, 'lucy')).toBe(2);
+    expect(session.undo()).toBe(true);
+    expect(score(session, 'lucy')).toBe(1);
+
+    const { session: resumed } = Session.resumeOrCreate(dir, content);
+    expect(score(resumed, 'lucy')).toBe(1);
+  });
+
+  it('opens a log that already contains an unreducible event', () => {
+    const dir = tempDir();
+    const session = Session.create(dir, content);
+    session.append({ type: 'ENTRANT_ADD', entrant: { id: 'lucy', displayName: 'Lucy' } });
+    session.append({ type: 'AWARD_POINTS', entrantId: 'lucy', points: 3 });
+
+    // Written by an older build, or hand-edited on the morning.
+    appendFileSync(session.file, `${JSON.stringify({ type: 'ROUND_EVENT', roundId: 'photos', event: null, at: 1, seq: 99 })}\n`);
+
+    const { session: resumed } = Session.resumeOrCreate(dir, content);
+    expect(score(resumed, 'lucy')).toBe(3);
+  });
+
+  it('refuses a content reload that would wipe points already scored', () => {
+    const dir = tempDir();
+    const session = Session.create(dir, content);
+    session.append({ type: 'ENTRANT_ADD', entrant: { id: 'lucy', displayName: 'Lucy' } });
+    session.append({ type: 'ROUND_SELECT', roundId: 'photos' });
+    session.append({ type: 'ROUND_EVENT', roundId: 'photos', event: { type: 'AWARD', entrantId: 'lucy' } });
+    expect(score(session, 'lucy')).toBe(1);
+
+    // The host mistypes the round id — or the round fails validation and drops
+    // out of the file. Points are recomputed from the log, so reloading would
+    // silently zero the scoreboard on the TV with nothing to explain it.
+    const refusal = session.reloadContent({ ...content, rounds: [{ ...content.rounds[0], id: 'phtos' }] });
+
+    expect(refusal).toMatch(/"photos"/);
+    expect(score(session, 'lucy')).toBe(1);
+  });
+
+  it('accepts a content reload that leaves played rounds alone', () => {
+    const dir = tempDir();
+    const session = Session.create(dir, content);
+    session.append({ type: 'ENTRANT_ADD', entrant: { id: 'lucy', displayName: 'Lucy' } });
+    session.append({ type: 'ROUND_SELECT', roundId: 'photos' });
+
+    const edited = {
+      ...content,
+      rounds: [{ ...content.rounds[0], title: 'Whose Baby Is This, Really' }],
+    };
+    expect(session.reloadContent(edited)).toBeNull();
+  });
+
+  it('resumes the newer session when two ids collide in the same second', () => {
+    const dir = tempDir();
+    const first = Session.create(dir, content, '20260814-120000');
+    first.append({ type: 'ENTRANT_ADD', entrant: { id: 'lucy', displayName: 'Lucy' } });
+    first.append({ type: 'AWARD_POINTS', entrantId: 'lucy', points: 5 });
+
+    // Same second: the host reset the game. The id is disambiguated with a
+    // "-2" suffix, which sorts *before* the original by name — resuming by
+    // filename would bring back the pre-reset scores.
+    const second = Session.create(dir, content, '20260814-120000');
+    second.append({ type: 'ENTRANT_ADD', entrant: { id: 'lucy', displayName: 'Lucy' } });
+
+    const { session: resumed } = Session.resumeOrCreate(dir, content);
+    expect(resumed.id).toBe(second.id);
+    expect(score(resumed, 'lucy')).toBe(0);
   });
 
   it('starts a fresh session without touching the old log', () => {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Entrant, HostState } from '../../../shared/types.js';
+import type { Entrant, HostRoundView, HostState } from '../../../shared/types.js';
 import type { RoundEvent } from '../../../shared/events.js';
 import { useConnection, useWakeLock } from '../lib/connection.js';
 import { BoardGrid, boardHostExtra } from './BoardGrid.js';
@@ -7,6 +7,7 @@ import { EntrantTile } from './EntrantTile.js';
 import { ScoreKeypad } from './ScoreKeypad.js';
 import { SetupPanel } from './SetupPanel.js';
 import { PassphraseGate, usePassphrase } from './PassphraseGate.js';
+import { Countdown } from '../display/Countdown.js';
 import '../styles/host.css';
 
 /**
@@ -55,6 +56,7 @@ export function HostView() {
   const points = Number((round?.extra as { points?: number } | undefined)?.points ?? state.defaultPoints ?? 1);
   const awards = (round?.extra as { awards?: Record<string, number> } | undefined)?.awards ?? {};
   const note = (round?.extra as { note?: string } | undefined)?.note;
+  const timerSeconds = (round?.extra as { timerSeconds?: number } | undefined)?.timerSeconds;
   const options = (round?.extra as { options?: { label: string; text: string }[] } | undefined)?.options;
   const correctLabel = (round?.extra as { correctLabel?: string } | undefined)?.correctLabel;
   const board = boardHostExtra(round);
@@ -128,6 +130,7 @@ export function HostView() {
               </p>
             )}
             {note && <p className="host-note">{note}</p>}
+            <TimerControl round={round} timerSeconds={timerSeconds} onEvent={roundEvent} />
             {round.media?.image && <img className="host-thumb" src={round.media.image} alt="" />}
           </>
         ) : (
@@ -200,6 +203,33 @@ export function HostView() {
       {setupOpen && (
         <SetupPanel state={state} dispatch={dispatch} command={command} onClose={() => setSetupOpen(false)} />
       )}
+    </div>
+  );
+}
+
+/**
+ * The clock is theatre. Nothing expires on its own and no points move when it
+ * hits zero — the host still decides, which is why this is a button and not a
+ * behaviour. Only appears for a round whose content sets `timerSeconds`.
+ */
+function TimerControl({
+  round,
+  timerSeconds,
+  onEvent,
+}: {
+  round: HostRoundView;
+  timerSeconds: number | undefined;
+  onEvent: (event: RoundEvent) => void;
+}) {
+  if (!timerSeconds) return null;
+  const running = Boolean(round.timer?.running);
+
+  return (
+    <div className="host-timer">
+      <button className={`btn ${running ? 'btn-danger' : ''}`} onClick={() => onEvent({ type: running ? 'TIMER_STOP' : 'TIMER_START' })}>
+        {running ? '■ Stop' : `▶ Start ${timerSeconds}s`}
+      </button>
+      {round.timer && <Countdown timer={round.timer} />}
     </div>
   );
 }

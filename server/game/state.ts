@@ -18,8 +18,12 @@ export interface GameState {
   currentRoundId: RoundId | null;
   /** roundId → the round type's own state blob. */
   roundStates: Record<RoundId, unknown>;
-  /** For the display's score-change flash. Keyed by entrant. */
-  lastDelta: Record<EntrantId, { points: number; seq: number }>;
+  /**
+   * For the display's score-change flash: points moved by the event just
+   * applied, keyed by entrant. Emptied at the top of every `reduce`, so it
+   * never describes an older event.
+   */
+  lastDelta: Record<EntrantId, number>;
   /** Sequence number of the last event applied. */
   seq: number;
 }
@@ -55,7 +59,12 @@ export function replay(events: GameEvent[], content: GameContent): GameState {
 }
 
 export function reduce(state: GameState, event: GameEvent, content: GameContent): GameState {
-  const next = applyEvent(state, event, content);
+  // Wipe the flash before applying, so only this event can leave one behind.
+  // Doing it here rather than in the projection is what makes the flash a pulse:
+  // an event that changes nothing else — NEXT on the last item of a round — is
+  // still enough to end it, instead of freezing the last award on the TV.
+  const base = Object.keys(state.lastDelta).length === 0 ? state : { ...state, lastDelta: {} };
+  const next = applyEvent(base, event, content);
   return next === state ? state : { ...next, seq: event.seq };
 }
 
@@ -79,23 +88,32 @@ function applyEvent(state: GameState, event: GameEvent, content: GameContent): G
       return { ...state, entrants: [...state.entrants, entrant] };
     }
 
-    case 'ENTRANT_UPDATE':
+    case 'ENTRANT_UPDATE': {
+      // Named fields, not a spread: the patch arrives from a host client, and a
+      // `score` or `id` in it would move points outside `award` and rename an
+      // entrant out from under its own event log. An empty `members` means "no
+      // opinion" — the host UI sends it whenever it is not editing the roster.
+      const patch = event.patch;
       return mapEntrant(state, event.entrantId, (e) => ({
         ...e,
-        ...event.patch,
-        members: event.patch.members?.length ? event.patch.members : e.members,
+        displayName: patch.displayName ?? e.displayName,
+        avatar: patch.avatar ?? e.avatar,
+        color: patch.color ?? e.color,
+        members: patch.members?.length ? patch.members : e.members,
+        active: patch.active ?? e.active,
       }));
+    }
 
     case 'ENTRANT_REMOVE':
       return { ...state, entrants: state.entrants.filter((e) => e.id !== event.entrantId) };
 
     case 'AWARD_POINTS':
-      return award(state, event.entrantId, event.points, event.seq);
+      return award(state, event.entrantId, event.points);
 
     case 'SET_SCORE': {
       const current = state.entrants.find((e) => e.id === event.entrantId);
       if (!current) return state;
-      return award(state, event.entrantId, event.score - current.score, event.seq);
+      return award(state, event.entrantId, event.score - current.score);
     }
 
     case 'SET_PHASE':
@@ -130,7 +148,7 @@ function applyEvent(state: GameState, event: GameEvent, content: GameContent): G
       const after = roundType.reduce(before as never, event.event, round.config as never, ctx);
 
       let next: GameState = { ...state, roundStates: { ...state.roundStates, [round.id]: after } };
-      for (const a of drainAwards()) next = award(next, a.entrantId, a.points, event.seq);
+      for (const a of drainAwards()) next = award(next, a.entrantId, a.points);
       return next;
     }
 
@@ -139,11 +157,14 @@ function applyEvent(state: GameState, event: GameEvent, content: GameContent): G
   }
 }
 
-function award(state: GameState, entrantId: EntrantId, points: number, seq: number): GameState {
+function award(state: GameState, entrantId: EntrantId, points: number): GameState {
   if (!points || !state.entrants.some((e) => e.id === entrantId)) return state;
   return {
+    // Merging is within one event, not across events: a single ROUND_EVENT may
+    // award several entrants and they flash together, but `reduce` has already
+    // emptied whatever the previous event left here.
     ...mapEntrant(state, entrantId, (e) => ({ ...e, score: e.score + points })),
-    lastDelta: { ...state.lastDelta, [entrantId]: { points, seq } },
+    lastDelta: { ...state.lastDelta, [entrantId]: points },
   };
 }
 
