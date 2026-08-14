@@ -26,7 +26,7 @@ entrants:
     displayName: 'Lucy'
     avatar: /content/avatars/avatar-d.svg
     # Optional: who is on this team. Shown to the host, handy for a family team.
-    members: [{ name: 'Lucy' }]
+    members: [ { name: 'Lucy' } ]
 
 # Rounds play in the order you list them, but the host can jump to any round
 # from a dropdown at any time. At least one round is required.
@@ -62,9 +62,9 @@ rounds:
     defaultPoints: 2
     items:
       - prompt: 'CHANGE ME — the question'
-        options: ['CHANGE ME A', 'CHANGE ME B', 'CHANGE ME C', 'CHANGE ME D']
+        options: [ 'CHANGE ME A', 'CHANGE ME B', 'CHANGE ME C', 'CHANGE ME D' ]
         correct: C # the LETTER of the right option: A, B, C ... (2–8 options)
         # answer: 'Optional extra line read out on reveal.'
       - prompt: 'CHANGE ME — a second question'
-        options: ['Yes', 'No']
+        options: [ 'Yes', 'No' ]
         correct: A

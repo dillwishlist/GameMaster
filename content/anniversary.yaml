@@ -17,7 +17,7 @@ entrants:
   - id: mum-dad
     displayName: 'Mum & Dad'
     avatar: /content/avatars/avatar-a.svg
-    members: [{ name: 'David' }, { name: 'Jennifer' }]
+    members: [ { name: 'David' }, { name: 'Jennifer' } ]
   - id: the-swans
     displayName: 'Team Swan'
     avatar: /content/avatars/avatar-b.svg
@@ -63,7 +63,7 @@ rounds:
     title: 'Just For Lucy'
     # Only Lucy can score here. Everyone else's tile greys out on the host view,
     # which is what stops a helpful adult from shouting the answer for a point.
-    restrictTo: [lucy]
+    restrictTo: [ lucy ]
     defaultPoints: 1
     items:
       - prompt: 'How many grandchildren?'
@@ -85,14 +85,14 @@ rounds:
     defaultPoints: 2
     items:
       - prompt: 'Where did David and Jennifer meet?'
-        options: ['A bus stop', 'A wedding', 'A chemistry lab', 'A queue for chips']
+        options: [ 'A bus stop', 'A wedding', 'A chemistry lab', 'A queue for chips' ]
         correct: C
         answer: 'Second-year practical, 1983'
       - prompt: 'What was the first song at their wedding?'
-        options: ['Careless Whisper', 'True', 'Every Breath You Take', 'Wake Me Up Before You Go-Go']
+        options: [ 'Careless Whisper', 'True', 'Every Breath You Take', 'Wake Me Up Before You Go-Go' ]
         correct: B
       - prompt: 'How many houses have they lived in together?'
-        options: ['Three', 'Five', 'Seven', 'Nine']
+        options: [ 'Three', 'Five', 'Seven', 'Nine' ]
         correct: C
         answer: 'Seven, and Dad has a story about each one'
 

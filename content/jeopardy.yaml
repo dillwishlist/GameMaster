@@ -19,7 +19,7 @@ entrants:
   - id: mum-dad
     displayName: 'Mum & Dad'
     avatar: /content/avatars/avatar-a.svg
-    members: [{ name: 'David' }, { name: 'Jennifer' }]
+    members: [ { name: 'David' }, { name: 'Jennifer' } ]
   - id: the-swans
     displayName: 'Team Swan'
     avatar: /content/avatars/avatar-b.svg
