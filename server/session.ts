@@ -184,6 +184,34 @@ export class Session {
       );
     }
 
+    /**
+     * Round types address their content by position — `manual` by item index,
+     * `board` by "category:clue". So inserting or deleting a question in a
+     * round that is already under way moves every question after it: the clue
+     * on the TV silently becomes a different one, and on a board the answer to
+     * an already-played square can appear, revealed, in front of the room.
+     *
+     * Editing the *words* is safe and is the whole point of hot reload —
+     * that's what the run-day checklist tells the host to do. Adding or
+     * removing questions mid-round is not, so it is refused rather than
+     * quietly applied.
+     */
+    const restructured = content.rounds.filter(
+      (round) =>
+        this.state.roundStates[round.id] !== undefined &&
+        arrayShapeChanged(this.contentFor(round.id), round.config),
+    );
+
+    if (restructured.length > 0) {
+      return (
+        `Refusing to reload: ${restructured.map((r) => `"${r.title}"`).join(', ')} ` +
+        `${restructured.length === 1 ? 'is' : 'are'} already in play, and the number of questions changed. ` +
+        `Questions are addressed by position, so this would move the round underneath itself — ` +
+        `on a board it can put an answer on the TV. Edit the wording freely; ` +
+        `add or remove questions between rounds, or start a fresh session.`
+      );
+    }
+
     // Only commit once the replay has succeeded — assigning first would leave
     // the session reducing new events against content its state doesn't match.
     const next = this.rebuild(this.events, content);
@@ -199,6 +227,10 @@ export class Session {
     for (const listener of this.listeners) fresh.onChange(listener);
     fresh.emit();
     return fresh;
+  }
+
+  private contentFor(roundId: string): unknown {
+    return this.content.rounds.find((r) => r.id === roundId)?.config;
   }
 
   onChange(listener: () => void): () => void {
@@ -221,6 +253,29 @@ export class Session {
     writeFileSync(temp, this.events.map((e) => `${JSON.stringify(e)}\n`).join(''));
     renameSync(temp, this.file);
   }
+}
+
+/**
+ * True when the two configs differ in the length of any array — items,
+ * categories, clues, options. Deliberately blind to everything else: rewording
+ * a question, fixing a typo in an answer, adding a host note or swapping an
+ * image all leave positions alone and must keep working mid-round.
+ */
+function arrayShapeChanged(before: unknown, after: unknown): boolean {
+  if (Array.isArray(before) || Array.isArray(after)) {
+    if (!Array.isArray(before) || !Array.isArray(after) || before.length !== after.length) return true;
+    return before.some((item, i) => arrayShapeChanged(item, after[i]));
+  }
+  if (isRecord(before) && isRecord(after)) {
+    // Keys only on one side are an added or removed field, not a moved
+    // question — the positions the round type counts on are unaffected.
+    return Object.keys(before).some((key) => key in after && arrayShapeChanged(before[key], after[key]));
+  }
+  return false;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**

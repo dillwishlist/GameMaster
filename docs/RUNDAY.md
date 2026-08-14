@@ -51,6 +51,7 @@ None of it is optional and none of it is interesting — that is the point.
 | Score is wrong and you don't know why | Tap the score bubble on the tile and set the number by hand. Do not fight the software in front of the room. |
 | A round misbehaves | Pick a different round from the dropdown and carry on. Come back to it or don't. |
 | Content file has a typo | The host view shows the error and **keeps playing the last good version**. Fix the file when you get a minute; it reloads by itself. |
+| You want to edit a question mid-game | Reword anything you like — that reloads live. **Adding or removing questions in a round already in play is refused**, with a message saying so: questions are addressed by position, so it would move the round underneath itself. Do that between rounds. |
 | Laptop dies completely | Restart it and run `npm start`. The session resumes with every point intact. |
 | Everything dies | The printed question list and the paper scoreboard. This is why they are in the room. |
 

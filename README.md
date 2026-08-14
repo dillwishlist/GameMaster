@@ -56,23 +56,27 @@ session.
 
 ## What it does today
 
-Phase 0 is complete, and Phase 0 alone runs the party:
+Phase 0 is complete, and Phase 0 alone runs the party. Phases 1 and 2 are in on
+top of it:
 
 - **Host onboarding.** The host creates entrants on the tablet and picks a face
   from `content/avatars/`. No join flow, no lobby, no device.
 - **`manual` round type.** A prompt, optional media, and a grid of faces. Tap
   to award, long-press to deduct.
 - **`multipleChoice` round type**, host-adjudicated.
+- **`board` round type** — Jeopardy. Category x value grid, wagers, deductions
+  for a wrong answer, consumed squares.
 - **Event-sourced state** with undo, redo, per-event persistence and crash
   recovery.
 - **Manual score override** on every entrant, always.
 - **YAML content** with hot reload and line-referenced validation errors.
 - **Display view** with prompt, media, answers-on-reveal and a live
   leaderboard.
+- **Timers and sound cues**, both host-controlled, both optional.
+- **`npm run replay`** — final scores and a readable transcript after the fact.
 
-Deliberately not built: the Jeopardy-style `board` type (Phase 2), player
-self-join and device submission (Phase 3), and an extracted plugin SDK
-(Phase 3). See [Phasing](#phasing).
+Deliberately not built: player self-join and device submission (Phase 3), and
+an extracted plugin SDK (Phase 3). See [Phasing](#phasing).
 
 ## The two invariants
 
@@ -159,7 +163,7 @@ interface RoundType<Config, State> {
 }
 ```
 
-Register it in `server/roundTypes/index.ts`. Two rules:
+Register it in `server/roundTypes/index.ts`. Three rules:
 
 - **Never touch a score directly.** Call `ctx.awardPoints(entrantId, n)`. Awards
   are collected during `reduce` and applied by the core reducer, which is why
@@ -168,9 +172,21 @@ Register it in `server/roundTypes/index.ts`. Two rules:
   event being reduced, and `ctx.timer`, which derives from it. A reducer that
   reads `Date.now()` breaks replay, and replay is what makes undo and crash
   recovery work.
+- **Never mutate the state you are handed.** The core passes your own state
+  blob without copying it, so a stray `state.items.push(...)` corrupts the
+  incremental path while a full replay quietly papers over it — a bug that
+  appears only after an undo, in front of everyone. Return new objects.
 
-Roadmap, not built: `board` (Jeopardy), `buzzer`, `wager`, `ordering`,
-`pictionary`, `speedRound`.
+Two more things a round type must respect, both learned the hard way. Anything
+the room must not see early has to live in the top-level `answer` field or a
+top-level `extra` key named in `displaySecrets` — those are the only two places
+`sanitizeDisplayView` can reach, and its `delete` is shallow, so a secret nested
+inside an `extra` sub-object *will* ship to the TV. And `media` is never
+withheld: an image is on the screen from the moment the item appears, so don't
+offer a reveal for one.
+
+Roadmap, not built: `buzzer` (needs devices), `ordering`, `pictionary` with a
+shared canvas, `speedRound` with a shared clock.
 
 ## How it works
 
@@ -207,10 +223,13 @@ internet down.
   hot reload, host view usable on the laptop.
 - **Phase 1 — cheap wins.** `multipleChoice` ✅, timers ✅, sound cues over HDMI
   ✅, round title cards ✅.
-- **Phase 2 — the fun one.** `board` / Jeopardy. Wagers if there is room.
-  Build it only after Phase 0 has been rehearsed end-to-end with real content.
-- **Phase 3 — after the party.** Player self-join and device submission, an
-  extracted and documented plugin SDK, session export and replay.
+- **Phase 2 — the fun one. ✅ Done.** `board` / Jeopardy, with wagers.
+- **Phase 3 — after the party.** Player self-join and device submission, and an
+  extracted, documented plugin SDK. Session export and replay landed early —
+  it was cheap, and see [`docs/AFTER-THE-PARTY.md`](docs/AFTER-THE-PARTY.md).
+
+Everything is built. What remains is the part that isn't code: collect the real
+content, then rehearse on the actual television with a real second person.
 
 ### The critical path is not code
 

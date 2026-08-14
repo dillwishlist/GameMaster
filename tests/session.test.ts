@@ -186,6 +186,64 @@ describe('session', () => {
     expect(score(session, 'lucy')).toBe(1);
   });
 
+  it('refuses to move the questions under a round that is already in play', () => {
+    const dir = tempDir();
+    const session = Session.create(dir, content);
+    session.append({ type: 'ROUND_SELECT', roundId: 'photos' });
+
+    // Someone inserts a question at the top of the round mid-party. Questions
+    // are addressed by position, so the prompt on the TV would silently become
+    // a different one — and on a board, an already-played answer can appear.
+    const withExtraItem = {
+      ...content,
+      rounds: [
+        {
+          ...content.rounds[0],
+          config: {
+            items: [{ prompt: 'A new first question', answer: 'Surprise' }, ...(content.rounds[0].config as { items: unknown[] }).items],
+          },
+        },
+      ],
+    };
+
+    expect(session.reloadContent(withExtraItem)).toMatch(/already in play/);
+  });
+
+  it('still allows rewording a question mid-round, which is the point of hot reload', () => {
+    const dir = tempDir();
+    const session = Session.create(dir, content);
+    session.append({ type: 'ROUND_SELECT', roundId: 'photos' });
+
+    const reworded = {
+      ...content,
+      rounds: [
+        {
+          ...content.rounds[0],
+          config: { items: [{ prompt: 'Whose baby photo is this, then?', answer: 'David', note: 'wait for the laugh' }] },
+        },
+      ],
+    };
+
+    expect(session.reloadContent(reworded)).toBeNull();
+  });
+
+  it('allows restructuring a round nobody has played yet', () => {
+    const dir = tempDir();
+    const session = Session.create(dir, content);
+    // Never selected, so no round state exists and nothing can shift under it.
+    const extended = {
+      ...content,
+      rounds: [
+        {
+          ...content.rounds[0],
+          config: { items: [{ prompt: 'a', answer: 'b' }, { prompt: 'c', answer: 'd' }] },
+        },
+      ],
+    };
+
+    expect(session.reloadContent(extended)).toBeNull();
+  });
+
   it('accepts a content reload that leaves played rounds alone', () => {
     const dir = tempDir();
     const session = Session.create(dir, content);
