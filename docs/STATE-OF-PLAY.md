@@ -172,11 +172,18 @@ docs/            RUNDAY.md (the checklist), this file
 2. Collect the actual content — photos, trivia, the wedding pictures. This runs
    through five households and it is the real critical path. Placeholders exist
    so the game is playable without it; a great game needs it.
-3. **Host-side timer controls** — a start/stop button for a countdown on a
-   charades round. The server side, the event, and the display countdown all
-   exist already; only the host button is missing. Smallest useful next task.
-4. The three open minors from the review (table above), if anyone is bored.
+3. **Small, known, unfixed:** on a board round the host's "Start timer" button
+   is visible while the grid is up, where it now does nothing. The server-side
+   fix was the right one (a timer with no square open could never be stopped);
+   hiding the button until a square is open is a one-line client follow-up.
+4. The open minors from the first review (table above), if anyone is bored.
 5. Only then: Phase 3 (self-join, device submission, extracted plugin SDK).
+
+A note on the reviews: a third pass, driving both views in a real browser for
+live-play failure modes (rapid taps, connection loss mid-round, long names,
+sheets open while state changes), was still running when work stopped. Its
+findings are not in this document. If you are picking this up, that is the one
+piece of known-unread feedback.
 
 ## What not to build
 
