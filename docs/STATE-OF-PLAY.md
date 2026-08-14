@@ -80,6 +80,32 @@ mutation, including nested `roundStates`), undo/redo semantics including across
 round switches, crash recovery from torn and shortened logs, authorization on
 every mutating socket command, and memory growth over a session.
 
+### The second review — the board type, the replay tool
+
+A separate pass covered the newer code the first review excluded. It fuzzed
+hard and could not break the properties that matter: 60,000 random board states
+never leaked a prompt, response or note to the TV before reveal (the daily
+double is genuinely unspottable from the sofa); 200,000 malformed events never
+made `reduce` throw or mutate a frozen state; 400 random logs replayed
+identically and matched an incremental fold.
+
+What it did find:
+
+| Finding | Status |
+|---|---|
+| **A structural YAML edit mid-board repointed the open square** and pushed an already-played answer, revealed, onto the TV. Squares are addressed by position, and the workflow that triggers it is the one RUNDAY recommends. | **Fixed** — a reload that changes the number of questions in a round already in play is refused. Rewording still works live. |
+| A wager survived CANCEL and CLOSE and silently re-applied, so a 500 square could come round again worth 1500. | Fixed |
+| A timer started with the grid up could never be stopped. | Fixed |
+| `Number()` coercion meant `OPEN {category: null}` opened the top-left square rather than being ignored. | Fixed |
+| `npm run replay` rendered a board round as one meaningless line and blamed the host's content file for it. | Fixed |
+| `npm run replay` died with a raw stack trace on a log the live server opens fine. | Fixed |
+
+It also judged the board tests a good happy-path suite that missed the things
+that would cost the party — no mutation guard, no malformed-event coverage, a
+determinism test that compared two full replays (trivially equal for any
+implementation, mutating or not), and no board round anywhere in the replay
+tests. Those gaps are now filled.
+
 One structural note from it worth keeping: the core hands a plugin its own
 `roundStates[id]` without a defensive copy, so a round type *could* mutate
 shared state. None do. If a future one does, `replay` would mask it and only

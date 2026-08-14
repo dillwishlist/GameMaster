@@ -52,12 +52,40 @@ export interface AwardRow {
   points: number;
 }
 
+/**
+ * Why an item has no prompt.
+ *
+ *   - `found`    — it does have one; nothing is missing.
+ *   - `missing`  — we know exactly which item this was, and the content file no
+ *                  longer has it. Somebody edited the YAML.
+ *   - `unlisted` — the round type keeps no item list this tool recognises, so
+ *                  there was never a prompt to look up. Nothing is wrong with
+ *                  the content file and the transcript must not imply there is.
+ */
+export type ItemDetail = 'found' | 'missing' | 'unlisted';
+
 export interface ItemReplay {
-  /** Index into the round's `items`, as the log recorded it. */
+  /**
+   * How the round type names this item: `"3"` for a list round, `"2:1"` for a
+   * board square. Opaque — it exists so that two visits to the same item
+   * collapse into one entry in the transcript.
+   */
+  key: string;
+  /**
+   * The number the transcript prints, 0-based. It is the item's position in the
+   * round's `items` where the round type has one; a round type with no linear
+   * list (a board) numbers its items by the order the room reached them.
+   */
   index: number;
-  /** Null when the content file no longer has an item at this index. */
+  /**
+   * What the round type calls this item — "Family Legends, 400" for a board
+   * square. Null for a plain list, where the number is the whole of the name.
+   */
+  label: string | null;
+  /** Null when there is no prompt to show; `detail` says why. */
   prompt: string | null;
   answer: string | null;
+  detail: ItemDetail;
   awards: AwardRow[];
 }
 
@@ -110,6 +138,12 @@ export interface ReplaySummary {
     setScore: number;
     /** Lines neither file could parse. Almost always one torn final write. */
     unreadableLines: number;
+    /**
+     * Events that parsed but that `reduce` refused — written by an older build,
+     * or hand-edited on the morning. Skipped exactly as `Session.rebuild` skips
+     * them when the server resumes, so a log the party ran on still reads back.
+     */
+    unreplayable: number;
   };
   /** Anything worth saying out loud that is not an error. */
   warnings: string[];
@@ -208,9 +242,9 @@ function resolveContent(opts: ReplayOptions): { content: GameContent; error: str
 
 interface RoundAccum {
   roundId: RoundId;
-  /** Item indices in the order the room actually visited them. */
-  order: number[];
-  items: Map<number, ItemReplay>;
+  /** Item keys in the order the room actually visited them. */
+  order: string[];
+  items: Map<string, ItemReplay>;
 }
 
 export function buildSummary(opts: ReplayOptions = {}): ReplaySummary {
@@ -229,6 +263,7 @@ export function buildSummary(opts: ReplayOptions = {}): ReplaySummary {
   const adjustments: AdjustmentRow[] = [];
   const missingRounds = new Set<RoundId>();
   let setScoreCount = 0;
+  let unreplayable = 0;
 
   const roundFor = (roundId: RoundId): RoundAccum => {
     let acc = roundsById.get(roundId);
@@ -240,13 +275,20 @@ export function buildSummary(opts: ReplayOptions = {}): ReplaySummary {
     return acc;
   };
 
-  const touchItem = (acc: RoundAccum, index: number): ItemReplay => {
-    let item = acc.items.get(index);
+  const touchItem = (acc: RoundAccum, key: string): ItemReplay => {
+    let item = acc.items.get(key);
     if (!item) {
-      const { prompt, answer } = describeItem(content, acc.roundId, index);
-      item = { index, prompt, answer, awards: [] };
-      acc.items.set(index, item);
-      acc.order.push(index);
+      const listIndex = Number(key);
+      item = {
+        key,
+        // A list round keeps the content file's own numbering, which is what a
+        // reader has in front of them. Anything else counts arrivals.
+        index: Number.isInteger(listIndex) && listIndex >= 0 ? listIndex : acc.order.length,
+        ...describeItem(content, acc.roundId, key),
+        awards: [],
+      };
+      acc.items.set(key, item);
+      acc.order.push(key);
     }
     return item;
   };
@@ -255,7 +297,16 @@ export function buildSummary(opts: ReplayOptions = {}): ReplaySummary {
 
   for (const event of events) {
     const before = state;
-    state = reduce(before, event, content);
+    try {
+      state = reduce(before, event, content);
+    } catch {
+      // Exactly what `Session.rebuild` does when the server resumes: an event
+      // written by an older build, or hand-edited on the morning, is a fact
+      // about this log and not a reason to refuse to print the scores. Skip it,
+      // count it, and carry on from the state before it.
+      unreplayable++;
+      continue;
+    }
     for (const e of state.entrants) namesEverSeen.set(e.id, e.displayName);
 
     const deltas = scoreDeltas(before, state);
@@ -264,8 +315,12 @@ export function buildSummary(opts: ReplayOptions = {}): ReplaySummary {
       case 'ROUND_SELECT': {
         if (event.roundId === null) break;
         if (!content.rounds.some((r) => r.id === event.roundId)) missingRounds.add(event.roundId);
+        const acc = roundFor(event.roundId);
         // The round's own state only exists once the select has been reduced.
-        touchItem(roundFor(event.roundId), itemIndexOf(state, event.roundId) ?? 0);
+        // A round type showing nothing yet — a board with the grid still up —
+        // has no item to record, and an invented item zero would be a lie.
+        const key = itemKeyOf(state, event.roundId);
+        if (key !== null) touchItem(acc, key);
         break;
       }
 
@@ -273,16 +328,17 @@ export function buildSummary(opts: ReplayOptions = {}): ReplaySummary {
         if (!content.rounds.some((r) => r.id === event.roundId)) missingRounds.add(event.roundId);
         const acc = roundFor(event.roundId);
         // Awards belong to the item that was on the TV when the host tapped,
-        // which is the index *before* the event — a NEXT that also scores would
-        // otherwise credit the wrong question.
-        const shown = itemIndexOf(before, event.roundId) ?? itemIndexOf(state, event.roundId) ?? 0;
+        // which is the item *before* the event — a NEXT that also scores would
+        // otherwise credit the wrong question. An OPEN has nothing showing
+        // beforehand, so the square it opened is the honest answer there.
+        const shown = itemKeyOf(before, event.roundId) ?? itemKeyOf(state, event.roundId) ?? UNPLACED;
         const item = touchItem(acc, shown);
         for (const d of deltas) {
           item.awards.push({ at: event.at, entrantId: d.entrantId, displayName: d.displayName, points: d.points });
         }
         // A navigation event lands the room on a new item; record the arrival so
         // the transcript shows questions nobody scored on.
-        const landed = itemIndexOf(state, event.roundId);
+        const landed = itemKeyOf(state, event.roundId);
         if (landed !== null && landed !== shown) touchItem(acc, landed);
         break;
       }
@@ -358,6 +414,7 @@ export function buildSummary(opts: ReplayOptions = {}): ReplaySummary {
       undone: sidecar.count,
       setScore: setScoreCount,
       unreadableLines: unreadable + sidecar.unreadable,
+      unreplayable,
     },
     warnings,
   };
@@ -415,34 +472,84 @@ function scoreDeltas(before: GameState, after: GameState): Delta[] {
   return deltas;
 }
 
-/**
- * The item a round is showing. Round state is an opaque blob by contract, so
- * this peeks for a numeric `index` and shrugs if there isn't one — a future
- * round type without a linear item list simply reports everything under item 0.
+/* -------------------------------------------------------------------------- */
+/* Round-type shims                                                           */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Everything this file knows about the *shape* of a round's state and config
+ * lives below, and nothing above it. Each shim answers two questions — "which
+ * item was on the TV" and "what did that item say" — and a round type matching
+ * none of the shapes falls through to nulls and an honest `unlisted`, rather
+ * than to a wrong item or to a claim about the host's YAML.
+ *
+ * Adding a shim is the price of a round type whose state is not a cursor into a
+ * list. It is deliberately the only price: scoring still comes off the state
+ * deltas, so a round type nobody shimmed still gets its points in the totals.
  */
-function itemIndexOf(state: GameState, roundId: RoundId): number | null {
+
+/** Where awards go when the round type will not say which item was showing. */
+const UNPLACED = '?';
+
+/**
+ * The item a round is showing, as a key that identifies it within the round.
+ * Round state is an opaque blob by contract, so this peeks at the two shapes
+ * the round types actually use and returns null when it recognises neither —
+ * null means "no item", which is not the same as item zero.
+ */
+function itemKeyOf(state: GameState, roundId: RoundId): string | null {
   const roundState = state.roundStates[roundId];
-  if (roundState && typeof roundState === 'object') {
-    const index = (roundState as { index?: unknown }).index;
-    if (typeof index === 'number' && Number.isFinite(index)) return index;
-  }
+  if (!roundState || typeof roundState !== 'object') return null;
+
+  // A linear round type (`manual`, `multipleChoice`) is a cursor into a list.
+  const index = (roundState as { index?: unknown }).index;
+  if (typeof index === 'number' && Number.isFinite(index)) return String(index);
+
+  // A `board` has no linear position: the item is whichever square is open,
+  // keyed "categoryIndex:clueIndex". `open` is null while the grid is up, and
+  // that is genuinely nothing showing rather than the first square.
+  const open = (roundState as { open?: unknown }).open;
+  if (typeof open === 'string' && open.length > 0) return open;
+
   return null;
 }
 
+interface ItemDescription {
+  label: string | null;
+  prompt: string | null;
+  answer: string | null;
+  detail: ItemDetail;
+}
+
+function blank(detail: ItemDetail, label: string | null = null): ItemDescription {
+  return { label, prompt: null, answer: null, detail };
+}
+
 /**
- * Prompt and answer for one item, straight out of the content file. Both round
- * types built so far keep `items` on their config; anything else, or an index
- * past the end of an edited file, yields nulls and the transcript says so.
+ * What one item says, straight out of the content file — dispatched on the
+ * shape of the round's config, because that is the only thing this file can see
+ * of a round type. An item past the end of an edited file is `missing`; a round
+ * type whose config is neither a list nor a grid is `unlisted`, which is a
+ * statement about the round type and not about the YAML.
  */
-function describeItem(
-  content: GameContent,
-  roundId: RoundId,
-  index: number,
-): { prompt: string | null; answer: string | null } {
+function describeItem(content: GameContent, roundId: RoundId, key: string): ItemDescription {
   const round = content.rounds.find((r) => r.id === roundId);
-  const items = (round?.config as { items?: unknown[] } | undefined)?.items;
-  const item = Array.isArray(items) ? items[index] : undefined;
-  if (!item || typeof item !== 'object') return { prompt: null, answer: null };
+  // The round itself is gone from the file — or the file would not load at all.
+  if (!round) return blank('missing');
+
+  const config = (round.config ?? {}) as { items?: unknown; categories?: unknown };
+  if (Array.isArray(config.categories)) return describeSquare(config.categories, key);
+  if (Array.isArray(config.items)) return describeListItem(config.items, key);
+  return blank('unlisted');
+}
+
+/** `manual` and `multipleChoice`: a flat `items` list, keyed by its index. */
+function describeListItem(items: unknown[], key: string): ItemDescription {
+  const index = Number(key);
+  if (!Number.isInteger(index) || index < 0) return blank('unlisted');
+
+  const item = items[index];
+  if (!item || typeof item !== 'object') return blank('missing');
 
   const { prompt, answer, options, correct } = item as {
     prompt?: unknown;
@@ -461,7 +568,44 @@ function describeItem(
     answerText = answerText ? `${spelled} — ${answerText}` : spelled;
   }
 
-  return { prompt: typeof prompt === 'string' ? prompt : null, answer: answerText };
+  return { label: null, prompt: typeof prompt === 'string' ? prompt : null, answer: answerText, detail: 'found' };
+}
+
+/**
+ * `board`: a grid of `categories[].clues[]`, keyed "categoryIndex:clueIndex".
+ * The label is how the room referred to the square out loud — "Family Legends,
+ * 400" — which is the only handle anybody has on it a year later. The stake is
+ * the printed value even on a wager square: what was actually staked is in the
+ * awards, read off the scores, and saying so twice risks saying it wrong.
+ */
+function describeSquare(categories: unknown[], key: string): ItemDescription {
+  const [c, r] = key.split(':').map(Number);
+  const category = Number.isInteger(c) ? categories[c] : undefined;
+  const clues = category && typeof category === 'object' ? (category as { clues?: unknown }).clues : undefined;
+  const clue = Array.isArray(clues) && Number.isInteger(r) ? clues[r] : undefined;
+
+  if (!clue || typeof clue !== 'object') {
+    // No square open — the host awarded points with the grid up, which `board`
+    // allows — or the board has been re-cut since and this square is gone.
+    return key === UNPLACED ? blank('unlisted', '(no square open)') : blank('missing');
+  }
+
+  const { prompt, answer, value, wager } = clue as {
+    prompt?: unknown;
+    answer?: unknown;
+    value?: unknown;
+    wager?: unknown;
+  };
+  const name = (category as { name?: unknown }).name;
+
+  return {
+    label:
+      `${typeof name === 'string' ? name : `Category ${c + 1}`}, ${typeof value === 'number' ? value : '?'}` +
+      (wager ? ' (wager)' : ''),
+    prompt: typeof prompt === 'string' ? prompt : null,
+    answer: typeof answer === 'string' ? answer : null,
+    detail: 'found',
+  };
 }
 
 function firstGameTitle(events: GameEvent[]): string {
@@ -566,7 +710,13 @@ export function formatSummary(summary: ReplaySummary): string {
     out.push('', `  Round ${i + 1} — ${label}${round.type ? `  [${round.type}]` : ''}`);
 
     for (const item of round.items) {
-      out.push(`    ${item.index + 1}. ${item.prompt ?? `(prompt ${missing})`}`);
+      // Which square, then the clue on it. A list round has no label and reads
+      // as it always has: the number, then the prompt.
+      const said = [item.label, item.prompt].filter((part): part is string => Boolean(part)).join(' — ');
+      // A round type that keeps no item list is not a content file somebody
+      // broke, and the transcript must not send anybody hunting for old YAML.
+      const why = item.detail === 'unlisted' ? 'this round type has no item list' : `prompt ${missing}`;
+      out.push(`    ${item.index + 1}. ${said || `(${why})`}`);
       if (item.answer) out.push(`       answer: ${item.answer}`);
       if (item.awards.length === 0) {
         out.push('       nobody scored');
@@ -595,11 +745,14 @@ export function formatSummary(summary: ReplaySummary): string {
     }
   }
 
-  const { undone, setScore, unreadableLines } = summary.corrections;
+  const { undone, setScore, unreadableLines, unreplayable } = summary.corrections;
   out.push('');
   out.push(
     `  ${plural(undone, 'event')} undone during play; ${plural(setScore, 'score')} set by hand` +
       (unreadableLines ? `; ${plural(unreadableLines, 'log line')} unreadable` : '') +
+      // Not a mistake the host made: the log holds something this build cannot
+      // replay, so the transcript below it knows less than the room did.
+      (unreplayable ? `; ${plural(unreplayable, 'event')} could not be replayed` : '') +
       '.',
   );
   if (undone > 0 || setScore > 0) {

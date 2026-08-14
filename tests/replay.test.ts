@@ -45,6 +45,45 @@ const content: GameContent = {
   ],
 };
 
+/**
+ * A board is the one round type whose state is not a cursor into a list: the
+ * item is whichever square is open, and the squares live two levels down under
+ * `categories[].clues[]`. It is also the round everybody argues about
+ * afterwards, so the transcript has to name the square it is talking about.
+ */
+const boardContent: GameContent = {
+  title: 'Family Jeopardy',
+  entrants: [],
+  brokenRounds: {},
+  sourceFile: 'jeopardy.yaml',
+  rounds: [
+    {
+      id: 'jeopardy',
+      type: 'board',
+      title: 'Family Jeopardy',
+      defaultPoints: 100,
+      config: {
+        categories: [
+          {
+            name: 'Family Legends',
+            clues: [
+              { value: 100, prompt: 'Who reversed the caravan into the pond?', answer: 'Grandad' },
+              { value: 400, prompt: 'Whose wedding speech ran to forty minutes?', answer: 'Uncle Ray' },
+            ],
+          },
+          {
+            name: 'Holiday Disasters',
+            clues: [
+              { value: 200, prompt: 'Which airport did we sleep in?', answer: 'Faro' },
+              { value: 800, prompt: 'The year of the lost passport', answer: '2011', wager: true },
+            ],
+          },
+        ],
+      },
+    },
+  ],
+};
+
 function tempDir(): string {
   return mkdtempSync(path.join(tmpdir(), 'gamemaster-replay-'));
 }
@@ -67,6 +106,30 @@ function writeLog(dir: string, id: string, inputs: GameEventInput[], opts: { tor
 function writeUndone(dir: string, id: string, inputs: GameEventInput[]): void {
   const lines = inputs.map((input, i) => `${JSON.stringify({ ...input, at: START + i * MINUTE, seq: i + 1 })}\n`);
   writeFileSync(path.join(dir, `session-${id}.undone.jsonl`), lines.join(''));
+}
+
+/**
+ * A board round the way it actually goes: a square opened and revealed, one
+ * team right and one team wrong for the same 400, then the daily double where
+ * the host sets a stake that is nothing like the printed value.
+ */
+function jeopardyLog(dir: string, id = '20260814-210000'): string {
+  return writeLog(dir, id, [
+    { type: 'SESSION_START', sessionId: id, gameTitle: 'Family Jeopardy' },
+    { type: 'ENTRANT_ADD', entrant: { id: 'mumdad', displayName: 'Mum & Dad' } },
+    { type: 'ENTRANT_ADD', entrant: { id: 'swans', displayName: 'Team Swan' } },
+    { type: 'ROUND_SELECT', roundId: 'jeopardy' },
+    { type: 'ROUND_EVENT', roundId: 'jeopardy', event: { type: 'OPEN', category: 0, clue: 1 } },
+    { type: 'ROUND_EVENT', roundId: 'jeopardy', event: { type: 'REVEAL' } },
+    { type: 'ROUND_EVENT', roundId: 'jeopardy', event: { type: 'AWARD', entrantId: 'mumdad' } },
+    // The deduct switch: a wrong answer costs exactly what a right one pays.
+    { type: 'ROUND_EVENT', roundId: 'jeopardy', event: { type: 'AWARD', entrantId: 'swans', points: -400 } },
+    { type: 'ROUND_EVENT', roundId: 'jeopardy', event: { type: 'NEXT' } },
+    { type: 'ROUND_EVENT', roundId: 'jeopardy', event: { type: 'OPEN', category: 1, clue: 1 } },
+    { type: 'ROUND_EVENT', roundId: 'jeopardy', event: { type: 'SET_WAGER', points: 1500 } },
+    { type: 'ROUND_EVENT', roundId: 'jeopardy', event: { type: 'AWARD', entrantId: 'swans' } },
+    { type: 'ROUND_EVENT', roundId: 'jeopardy', event: { type: 'NEXT' } },
+  ]);
 }
 
 /** A realistic little party: two rounds, an undo, a hand-set score. */
@@ -155,11 +218,105 @@ describe('replay', () => {
     expect(summary.rounds[1].items[0].answer).toBe('B. 1985');
   });
 
+  it('names the square, the clue and the response for a board round', () => {
+    const dir = tempDir();
+    const summary = buildSummary({ file: jeopardyLog(dir), content: boardContent });
+
+    const board = summary.rounds[0];
+    expect(board.type).toBe('board');
+    // Two squares were opened, and they are separate entries — a board has no
+    // linear index, so everything used to collapse onto one line.
+    expect(board.items.map((i) => i.key)).toEqual(['0:1', '1:1']);
+    expect(board.items.map((i) => i.label)).toEqual(['Family Legends, 400', 'Holiday Disasters, 800 (wager)']);
+    expect(board.items[0].prompt).toBe('Whose wedding speech ran to forty minutes?');
+    expect(board.items[0].answer).toBe('Uncle Ray');
+
+    // Right for 400, wrong for 400: the deduction is the whole point of the
+    // format, and it has to read as a deduction rather than as a smaller award.
+    expect(board.items[0].awards.map((a) => [a.displayName, a.points])).toEqual([
+      ['Mum & Dad', 400],
+      ['Team Swan', -400],
+    ]);
+    // The daily double pays the host's stake, not the 800 printed on the square.
+    expect(board.items[1].awards.map((a) => [a.displayName, a.points])).toEqual([['Team Swan', 1500]]);
+    expect(board.pointsAwarded).toBe(1500);
+
+    const text = formatSummary(summary);
+    expect(text).toContain('Round 1 — Family Jeopardy  [board]');
+    expect(text).toContain('1. Family Legends, 400 — Whose wedding speech ran to forty minutes?');
+    expect(text).toContain('answer: Uncle Ray');
+    expect(text).toContain('Team Swan  -400');
+    expect(text).toContain('2. Holiday Disasters, 800 (wager) — The year of the lost passport');
+    expect(text).toContain('Team Swan  +1500');
+    // The content file is present and unedited. Nothing may suggest otherwise.
+    expect(text).not.toContain('no longer in the content file');
+    expect(text).not.toContain('has no item list');
+  });
+
+  it('skips an event it cannot replay rather than dying at the reader', () => {
+    const dir = tempDir();
+    const file = writeLog(dir, '20260814-200000', [
+      { type: 'SESSION_START', sessionId: 's', gameTitle: 'Test Game' },
+      { type: 'ENTRANT_ADD', entrant: { id: 'lucy', displayName: 'Lucy' } },
+      { type: 'AWARD_POINTS', entrantId: 'lucy', points: 3 },
+      // The case tests/session.test.ts models: a line written by an older build,
+      // or hand-edited on the morning. The live server steps over it and resumes,
+      // so the tool that reads the same log back afterwards must too.
+      { type: 'ROUND_EVENT', roundId: 'photos', event: null as never },
+      { type: 'AWARD_POINTS', entrantId: 'lucy', points: 1 },
+    ]);
+
+    const summary = buildSummary({ file, content });
+
+    // Everything either side of the bad event is still scored.
+    expect(summary.scores[0]).toMatchObject({ displayName: 'Lucy', score: 4, winner: true });
+    expect(summary.corrections.unreplayable).toBe(1);
+
+    const text = formatSummary(summary);
+    expect(text).toContain('Winner: Lucy, 4 points.');
+    expect(text).toContain('1 event could not be replayed');
+  });
+
+  it('does not blame the content file for a round type it has never heard of', () => {
+    const dir = tempDir();
+    // A round type from a later build, or a plugin that was not loaded today.
+    // Its state and config are shapes this tool knows nothing about.
+    const future: GameContent = {
+      ...content,
+      rounds: [{ id: 'bingo', type: 'bingo', title: 'Nan’s Bingo', config: { cards: 4, calls: [] } }],
+    };
+    const file = writeLog(dir, '20260814-220000', [
+      { type: 'SESSION_START', sessionId: 's', gameTitle: 'Test Game' },
+      { type: 'ENTRANT_ADD', entrant: { id: 'lucy', displayName: 'Lucy' } },
+      { type: 'ROUND_SELECT', roundId: 'bingo' },
+      { type: 'ROUND_EVENT', roundId: 'bingo', event: { type: 'CALL', number: 17 } },
+      { type: 'AWARD_POINTS', entrantId: 'lucy', points: 2 },
+    ]);
+
+    const summary = buildSummary({ file, content: future });
+
+    // The round is in the file and the file is fine — the tool simply cannot
+    // read this round type's item list, which is a different sentence.
+    expect(summary.contentChanged).toBe(false);
+    expect(summary.warnings).toEqual([]);
+    const bingo = summary.rounds[0];
+    expect(bingo.known).toBe(true);
+    expect(bingo.title).toBe('Nan’s Bingo');
+    expect(bingo.items.map((i) => i.detail)).toEqual(['unlisted']);
+
+    const text = formatSummary(summary);
+    expect(text).toContain('Round 1 — Nan’s Bingo  [bingo]');
+    expect(text).toContain('(this round type has no item list)');
+    expect(text).not.toContain('no longer in the content file');
+    // The hand-set points still land: scoring never depended on knowing shapes.
+    expect(text).toContain('Winner: Lucy, 2 points.');
+  });
+
   it('counts the mistakes: undone events and hand-set scores', () => {
     const dir = tempDir();
     const summary = buildSummary({ file: partyLog(dir), content });
 
-    expect(summary.corrections).toEqual({ undone: 1, setScore: 1, unreadableLines: 0 });
+    expect(summary.corrections).toEqual({ undone: 1, setScore: 1, unreadableLines: 0, unreplayable: 0 });
     expect(summary.adjustments).toEqual([
       { at: START + 9 * MINUTE, type: 'SET_SCORE', entrantId: 'lucy', displayName: 'Lucy', points: 4, score: 5 },
     ]);
@@ -175,7 +332,7 @@ describe('replay', () => {
     ]);
 
     const summary = buildSummary({ file, content });
-    expect(summary.corrections).toEqual({ undone: 0, setScore: 0, unreadableLines: 0 });
+    expect(summary.corrections).toEqual({ undone: 0, setScore: 0, unreadableLines: 0, unreplayable: 0 });
     expect(summary.adjustments).toHaveLength(1);
   });
 

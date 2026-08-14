@@ -109,12 +109,20 @@ function cellByKey(config: BoardConfig, key: string | null): Cell | undefined {
   return cellAt(config, c, r);
 }
 
-/** The square named by an event, or undefined if the event points at nothing. */
+/**
+ * The square named by an event, or undefined if the event points at nothing.
+ *
+ * The indices must actually be numbers. Coercing with `Number()` would accept
+ * `null`, `''`, `[]` and `false` — every one of them is 0, and every one of
+ * them passes `Number.isInteger` — so a malformed tap would open the top-left
+ * clue in front of the room instead of doing nothing. The host client sends
+ * numbers; anything else names no square.
+ */
 function cellFromEvent(config: BoardConfig, event: RoundEvent): Cell | undefined {
-  const categoryIndex = Number(event.category);
-  const clueIndex = Number(event.clue);
-  if (!Number.isInteger(categoryIndex) || !Number.isInteger(clueIndex)) return undefined;
-  return cellAt(config, categoryIndex, clueIndex);
+  const { category, clue } = event;
+  if (typeof category !== 'number' || typeof clue !== 'number') return undefined;
+  if (!Number.isInteger(category) || !Number.isInteger(clue)) return undefined;
+  return cellAt(config, category, clue);
 }
 
 /** What this square pays — the host's wager if one is set, else the printed value. */
@@ -124,6 +132,22 @@ function stakeOf(state: BoardState, cell: Cell): number {
 
 function boardInit(): BoardState {
   return { consumed: [], open: null, revealed: false, awards: {}, wagers: {} };
+}
+
+/**
+ * Round state reaches a plugin as an opaque blob the core stored under a round
+ * id, so nothing in the type system stops another round type's state arriving
+ * here. Nothing does today — a content reload rebuilds `roundStates` from
+ * empty, so a round whose type changed re-inits before its first event — but a
+ * round type that throws on unfamiliar state takes the whole session down with
+ * it. One shape check makes `reduce` and both projections total; the round
+ * starts over rather than wedging the host.
+ */
+function asBoardState(state: BoardState): BoardState {
+  const candidate = state as Partial<BoardState> | null | undefined;
+  const looksRight =
+    !!candidate && Array.isArray(candidate.consumed) && !!candidate.awards && !!candidate.wagers;
+  return looksRight ? state : boardInit();
 }
 
 /**
@@ -146,7 +170,15 @@ function addAward(
 function close(state: BoardState, consume: boolean): BoardState {
   if (!state.open) return state;
   const consumed = consume && !state.consumed.includes(state.open) ? [...state.consumed, state.open] : state.consumed;
-  return { ...state, open: null, revealed: false, consumed, timer: undefined };
+  // The stake belongs to this visit to the square, not to the square forever.
+  // Both ways out of a square come through here, and both need it gone: after
+  // CANCEL the square is back in play at its printed value, and after CLOSE a
+  // deliberate REOPEN starts from the printed value too. A wager that survived
+  // would sit on the board as a mine — the room reads 500 off the TV, the host
+  // taps a face, and it pays 1500 to whoever happened to pick it.
+  const wagers = { ...state.wagers };
+  delete wagers[state.open];
+  return { ...state, open: null, revealed: false, consumed, wagers, timer: undefined };
 }
 
 function totalClues(config: BoardConfig): number {
@@ -184,7 +216,9 @@ export const boardRoundType = defineRoundType<BoardConfig, BoardState>({
 
   init: () => boardInit(),
 
-  reduce: (state, event, config, ctx) => {
+  reduce: (given, event, config, ctx) => {
+    const state = asBoardState(given);
+
     switch (event.type) {
       case 'OPEN': {
         const cell = cellFromEvent(config, event);
@@ -244,6 +278,12 @@ export const boardRoundType = defineRoundType<BoardConfig, BoardState>({
       }
 
       case 'TIMER_START': {
+        // The countdown belongs to an open square. Started on the grid it would
+        // be unstoppable: CLOSE and CANCEL are the only things that clear a
+        // timer and both return early with nothing open, so an expired clock
+        // would sit beside the board — on the host *and* the TV — for the rest
+        // of the round.
+        if (!state.open) return state;
         const seconds = typeof event.seconds === 'number' ? event.seconds : config.timerSeconds;
         if (!seconds) return state;
         return { ...state, timer: ctx.timer.start(seconds * 1000) };
@@ -261,7 +301,8 @@ export const boardRoundType = defineRoundType<BoardConfig, BoardState>({
     }
   },
 
-  projectHost: (state, config, ctx) => {
+  projectHost: (given, config, ctx) => {
+    const state = asBoardState(given);
     const cell = cellByKey(config, state.open);
     const total = totalClues(config);
     const stake = cell ? stakeOf(state, cell) : ctx.defaultPoints;
@@ -314,7 +355,8 @@ export const boardRoundType = defineRoundType<BoardConfig, BoardState>({
     };
   },
 
-  projectDisplay: (state, config, ctx) => {
+  projectDisplay: (given, config, ctx) => {
+    const state = asBoardState(given);
     const cell = cellByKey(config, state.open);
 
     return {
