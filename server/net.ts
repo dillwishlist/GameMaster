@@ -22,9 +22,22 @@ export function lanAddress(): string | null {
   return candidates.find(isPrivate) ?? candidates[0] ?? null;
 }
 
-export function printBanner(port: number, opts: { contentFile: string; sessionId: string; resumed: boolean }): void {
+/**
+ * Where guests reach this server, as a base URL with no trailing slash.
+ *
+ * Auto-detection only finds a *private* LAN address, which is right for a
+ * home party but useless on a box with no LAN — a cloud host guests reach by
+ * domain name. `GM_PUBLIC_URL` overrides it for that case.
+ */
+export function hostBaseUrl(port: number): string | null {
+  const override = process.env.GM_PUBLIC_URL?.trim().replace(/\/+$/, '');
+  if (override) return override;
   const ip = lanAddress();
-  const lan = ip ? `http://${ip}:${port}` : null;
+  return ip ? `http://${ip}:${port}` : null;
+}
+
+export function printBanner(port: number, opts: { contentFile: string; sessionId: string; resumed: boolean }): void {
+  const base = hostBaseUrl(port);
 
   const line = '─'.repeat(52);
   console.log(`\n${line}`);
@@ -34,16 +47,16 @@ export function printBanner(port: number, opts: { contentFile: string; sessionId
   console.log(line);
   console.log('  DISPLAY (this laptop, drag to the TV, then fullscreen):');
   console.log(`    http://localhost:${port}/display`);
-  console.log('  HOST (iPad on the same wifi):');
-  console.log(`    ${lan ? `${lan}/host` : '(no LAN address found — wifi down?)'}`);
+  console.log('  HOST (scan or open on any device that can reach this URL):');
+  console.log(`    ${base ? `${base}/host` : '(no LAN address found, and GM_PUBLIC_URL is unset — wifi down?)'}`);
   console.log('  HOST FALLBACK (if the wifi misbehaves, use this laptop):');
   console.log(`    http://localhost:${port}/host`);
   console.log(`${line}\n`);
 
-  if (lan) {
-    qrcode.generate(`${lan}/host`, { small: true }, (qr: string) => {
+  if (base) {
+    qrcode.generate(`${base}/host`, { small: true }, (qr: string) => {
       console.log(qr);
-      console.log(`  ↑ scan to open the host view on the iPad\n`);
+      console.log(`  ↑ scan to open the host view\n`);
     });
   }
 }
