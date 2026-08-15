@@ -79,6 +79,15 @@ try {
   const health = await waitForServer();
   check('server boots and reports healthy', health.ok);
 
+  // The QR code the landing page shows agrees with whether a LAN address
+  // was found at all — the same case the terminal banner handles.
+  const config = await (await fetch(`http://localhost:${PORT}/api/config`)).json();
+  const qrRes = await fetch(`http://localhost:${PORT}/api/qr`);
+  check(
+    'the QR endpoint agrees with /api/config about the LAN address',
+    config.lanHostUrl ? qrRes.ok && (await qrRes.text()).includes('<svg') : qrRes.status === 404,
+  );
+
   const host = connect('host', 'host');
   const display = connect('display', 'display');
   await Promise.all([host.ready, display.ready]);

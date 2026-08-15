@@ -173,3 +173,21 @@ code {
   color: var(--accent);
   font-size: 22px;
 }
+
+.chooser-qr {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.chooser-qr img {
+  background: #fff;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.chooser-qr p {
+  color: var(--dim);
+  font-size: 14px;
+}

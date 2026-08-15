@@ -18,7 +18,7 @@ import { ContentError, contentWarnings, loadContent, resolveContentFile, type Ga
 import { projectDisplay, projectHost, projectPlayer } from './game/projection.js';
 import { registerEditorRoutes } from './editor/routes.js';
 import { Session } from './session.js';
-import { printBanner } from './net.js';
+import { lanAddress, printBanner, qrSvg } from './net.js';
 
 /**
  * Last line of defence. A frozen screen is recoverable — the host reloads the
@@ -81,7 +81,22 @@ const http = createServer(app);
 const io = new SocketServer(http, { serveClient: false });
 
 app.get('/api/config', (_req, res) => {
-  res.json({ passphraseRequired: PASSPHRASE.length > 0 });
+  const ip = lanAddress();
+  res.json({
+    passphraseRequired: PASSPHRASE.length > 0,
+    // null off the LAN (e.g. wifi down) — same case the terminal banner handles.
+    lanHostUrl: ip ? `http://${ip}:${PORT}/host` : null,
+  });
+});
+
+/** The terminal QR code, rendered for a browser instead of stdout. */
+app.get('/api/qr', async (_req, res) => {
+  const ip = lanAddress();
+  if (!ip) {
+    res.status(404).json({ error: 'No LAN address found — wifi down?' });
+    return;
+  }
+  res.type('image/svg+xml').send(await qrSvg(`http://${ip}:${PORT}/host`));
 });
 
 app.get('/api/health', (_req, res) => {
@@ -105,11 +120,17 @@ registerEditorRoutes(app, {
 });
 
 if (existsSync(CLIENT_DIR)) {
-  app.use(express.static(CLIENT_DIR));
+  // `index: false`, or this middleware auto-serves index.html for `/` and the
+  // explicit redirect below never runs.
+  app.use(express.static(CLIENT_DIR, { index: false }));
   app.get(/^\/(host|display|play|edit)(\/.*)?$/, (_req, res) => {
     res.sendFile(path.join(CLIENT_DIR, 'index.html'));
   });
   app.get('/', (_req, res) => res.redirect('/host'));
+  // Anything else — a typo, an old bookmark — gets the Chooser rather than a 404.
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(CLIENT_DIR, 'index.html'));
+  });
 } else {
   app.get('*', (_req, res) => {
     res
