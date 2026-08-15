@@ -67,10 +67,11 @@ rounds:
     const file = scratch(readFileSync(REAL_CONTENT, 'utf8'));
     const after = edited(file, [{ op: 'setRoundField', roundId: 'welcome', field: 'title', value: 'Hello' }]);
 
-    // The kids-round explains why restrictTo exists. Editing a different round
-    // must not cost that explanation.
+    // The kids-round explains why restrictTo exists, and the finale explains
+    // why its sound cue is there. Editing a different round must not cost
+    // either explanation.
     expect(after).toContain('# Only Lucy can score here.');
-    expect(after).toContain('# A cue plays when the display *lands on* an item');
+    expect(after).toContain('# The one cue that has to be here.');
     expect(after).toContain("title: 'Hello'");
   });
 
