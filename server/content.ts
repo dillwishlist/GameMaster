@@ -73,7 +73,18 @@ interface Source {
 }
 
 export function loadContent(file: string): GameContent {
-  const raw = readFileSync(file, 'utf8');
+  return parseContent(readFileSync(file, 'utf8'), file);
+}
+
+/**
+ * Validate content that is not on disk yet.
+ *
+ * The editor needs to know whether an edit is legal *before* it writes, and it
+ * must ask exactly the question the server will ask at load time — one
+ * validator, two callers. A second copy of these rules would drift, and the
+ * drift would only show up as a game that won't start.
+ */
+export function parseContent(raw: string, file: string): GameContent {
   const lineCounter = new YAML.LineCounter();
   const doc = YAML.parseDocument(raw, { lineCounter });
   const src: Source = { doc, lineCounter, file };

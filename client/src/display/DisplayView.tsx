@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import type { DisplayState } from '../../../shared/types.js';
 import { useConnection } from '../lib/connection.js';
 import { Avatar } from '../components/Avatar.js';
@@ -29,9 +29,16 @@ export function DisplayView() {
   const options = (round?.extra as { options?: { label: string; text: string }[] } | undefined)?.options;
   const correctLabel = (round?.extra as { correctLabel?: string } | undefined)?.correctLabel;
   const board = displayBoardExtra(round);
+  /**
+   * The editor is rehearsing a question on the TV. The server sets this beside
+   * the display state rather than in it, so it is read off the payload rather
+   * than from `DisplayState`.
+   */
+  const preview = (state as { preview?: boolean }).preview === true;
 
   return (
-    <div className="display">
+    <div className="display" style={preview ? PREVIEW_FRAME : undefined}>
+      {preview && <div style={PREVIEW_FLAG}>Preview</div>}
       <Chime state={state} />
 
       <header className="display-header">
@@ -103,6 +110,35 @@ export function DisplayView() {
     </div>
   );
 }
+
+/**
+ * The preview marker. A preview left up during the party must be impossible to
+ * mistake for live play, so it is a border round the whole screen and the word
+ * itself, both of them permanent — this is not a toast that fades.
+ *
+ * The two styles are inline rather than in display.css deliberately: a safety
+ * marker that a stylesheet edit could switch off without anyone noticing is not
+ * a safety marker.
+ */
+const PREVIEW_FRAME: CSSProperties = {
+  outline: '10px solid var(--accent)',
+  outlineOffset: '-10px',
+};
+
+const PREVIEW_FLAG: CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  background: 'var(--accent)',
+  color: '#fff',
+  font: '700 22px/1 -apple-system, system-ui, sans-serif',
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  padding: '10px 26px',
+  borderRadius: '0 0 12px 12px',
+  zIndex: 30,
+};
 
 /** Full size up to six players, then down to a floor that still reads across a room. */
 function leaderboardScale(count: number): number {
