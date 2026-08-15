@@ -6,6 +6,7 @@
 
 import { networkInterfaces } from 'node:os';
 import qrcode from 'qrcode-terminal';
+import QRCode from 'qrcode';
 
 /** Best-guess LAN address: IPv4, non-internal, preferring private ranges. */
 export function lanAddress(): string | null {
@@ -45,4 +46,13 @@ export function printBanner(port: number, opts: { contentFile: string; sessionId
       console.log(`  ↑ scan to open the host view on the iPad\n`);
     });
   }
+}
+
+/**
+ * The same QR code as the terminal one, as an SVG for a browser to render.
+ * `qrcode-terminal` only draws to stdout, so this is the second QR library —
+ * it never touches the network, same as the terminal one.
+ */
+export function qrSvg(url: string): Promise<string> {
+  return QRCode.toString(url, { type: 'svg', margin: 1 });
 }

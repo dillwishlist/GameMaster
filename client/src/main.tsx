@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HostView } from './host/HostView.js';
 import { DisplayView } from './display/DisplayView.js';
@@ -20,11 +20,29 @@ function App() {
 }
 
 function Chooser() {
+  const [lanHostUrl, setLanHostUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/config')
+      .then((res) => res.json())
+      .then((config: { lanHostUrl: string | null }) => setLanHostUrl(config.lanHostUrl))
+      .catch(() => setLanHostUrl(null));
+  }, []);
+
   return (
     <div className="chooser">
       <h1>GameMaster</h1>
       <a href="/host">Host</a>
       <a href="/display">Display</a>
+      <a href="/edit">Edit</a>
+
+      {/* Absent off the LAN (wifi down) — same case the terminal banner handles. */}
+      {lanHostUrl && (
+        <div className="chooser-qr">
+          <img src="/api/qr" alt="Scan to open the host view" width={200} height={200} />
+          <p>Scan to open the host view — {lanHostUrl}</p>
+        </div>
+      )}
     </div>
   );
 }
