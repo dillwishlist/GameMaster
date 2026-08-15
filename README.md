@@ -48,6 +48,7 @@ Then work down [`docs/RUNDAY.md`](docs/RUNDAY.md), which is not optional.
 | `npm run typecheck` | Type-check the client and the server separately |
 | `npm run build` | Build the client bundle into `dist/client` |
 | `npm run replay` | Turn a finished session log into a readable transcript — see [`docs/AFTER-THE-PARTY.md`](docs/AFTER-THE-PARTY.md) |
+| `npm run import-submissions` | Turn a form export into questions — see [`docs/SUBMISSIONS.md`](docs/SUBMISSIONS.md) |
 
 Environment: `GM_PORT` (4000), `GM_CONTENT` (a specific content file),
 `GM_CONTENT_DIR` (`./content`), `GM_DATA_DIR` (`./data`), `GM_PASSPHRASE`
@@ -74,6 +75,9 @@ top of it:
   leaderboard.
 - **Timers and sound cues**, both host-controlled, both optional.
 - **`npm run replay`** — final scores and a readable transcript after the fact.
+- **A question editor** at `/edit`, which writes the same YAML file by hand-
+  editable, comment-preserving means, and can put a question on the TV to check
+  it without playing the round.
 
 Deliberately not built: player self-join and device submission (Phase 3), and
 an extracted plugin SDK (Phase 3). See [Phasing](#phasing).
@@ -96,8 +100,12 @@ during a rehearsal, not by reading this paragraph.
 
 ## Content
 
-Content is files, not a UI. There is no authoring screen and there is not going
-to be one. Put a `.yaml` file in `./content/` — see
+Content is files, not a UI — and it stays that way even though there is now an
+editor at `/edit`: the editor reads and writes the same YAML file the game
+plays, so hand-editing, `git diff` and the printed fallback all still work. See
+[`docs/EDITOR.md`](docs/EDITOR.md).
+
+Put a `.yaml` file in `./content/` — see
 [`content/anniversary.yaml`](content/anniversary.yaml) for a complete worked
 example, [`docs/CONTENT.md`](docs/CONTENT.md) for the full field-by-field guide,
 and [`docs/template.yaml`](docs/template.yaml) for a starter to copy.
@@ -236,11 +244,17 @@ content, then rehearse on the actual television with a real second person.
 Content collection has human latency and it runs through five households. Baby
 photos, trivia submissions, the wedding photos for the display — all of it
 depends on other people answering a text message. **Send the form and the photo
-request today.** If it comes back full on day 6, no amount of Phase 2 saves you.
+request today**, then feed the export straight in with
+`npm run import-submissions` ([`docs/SUBMISSIONS.md`](docs/SUBMISSIONS.md)). If it comes back full on day 6, no amount of Phase 2 saves you.
 If it comes back full on day 2, even a bare Phase 0 makes a great game.
 
 ## Non-goals
 
 No user accounts, no cloud services, no internet dependency at runtime, no
-question-authoring UI, no analytics, no multi-room support, no auth beyond an
-optional host passphrase, no mobile-native apps, no AI question generation.
+analytics, no multi-room support, no auth beyond an optional host passphrase,
+no mobile-native apps, no AI question generation.
+
+"No question-authoring UI" was on this list, and was removed deliberately: the
+editor at `/edit` earns its place by making prep easier, and it was built in a
+way that keeps every reason the non-goal existed — the file is still the source
+of truth, still hand-editable, still the thing the game reads.

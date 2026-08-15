@@ -121,6 +121,11 @@ export function HostView() {
         <button className="btn" onClick={() => setSetupOpen(true)}>
           Players
         </button>
+
+        {/* New tab, not a navigation: the host stays connected to the party. */}
+        <a className="btn" href="/edit" target="_blank" rel="noopener noreferrer">
+          Edit
+        </a>
       </header>
 
       {state.contentError && (

@@ -38,6 +38,7 @@ npm run check      # typecheck + unit tests + end-to-end smoke test
 | Sound cues (synthesized, no downloads) | Done |
 | Session replay / export (`npm run replay`) | Done |
 | CI on Node 20 and 22 | Done |
+| Question editor at `/edit` | Done — on branch `claude/question-editor`, see [`EDITOR.md`](EDITOR.md) |
 | Player self-join, device submission | Not built — Phase 3, expected to be cut |
 | Extracted plugin SDK | Not built — Phase 3 |
 
@@ -215,17 +216,37 @@ issues are listed at the end of the client review section above — none of them
 stops a party, and the two worth doing first are the paused-timer drift (needs
 a server payload change) and a favicon.
 
+## The editor
+
+Built, on its own branch so it can be reverted without touching the engine. See
+[`EDITOR.md`](EDITOR.md) for what it does and [`PLAN-EDITOR-AND-SUBMISSIONS.md`](PLAN-EDITOR-AND-SUBMISSIONS.md)
+for why it is shaped this way.
+
+The load-bearing decision: **the YAML file is still the source of truth**, and
+the editor is a view over it. Hand-editing, `git diff`, hot reload and the
+printed fallback all still work, and the editor can be broken while the party
+runs. Every property the "no question-authoring UI" non-goal was protecting is
+preserved, which is why removing that non-goal was safe.
+
+Things learned building it, worth not rediscovering:
+
+- **Byte-identical round-tripping needed the content normalised first.** The
+  files mixed flow styles (`{ image: x }` padded, `[lucy]` not) and one
+  serialiser has one opinion. They are stored in the editor's exact output
+  style now, so saves produce no spurious diff.
+- **`parseContent` quarantines a broken round rather than throwing.** Correct at
+  load time — one bad round must not take the game down — and wrong as an
+  editor gate, where it would let a save silently delete a round from the game.
+  The gate compares broken rounds before and after.
+- Board edits use their own node-level ops. Addressing a clue by column and row
+  keeps the comment guarantee, which a whole-block rewrite would have broken.
+
 ## Planned, not built
 
-[`PLAN-EDITOR-AND-SUBMISSIONS.md`](PLAN-EDITOR-AND-SUBMISSIONS.md) designs a GUI
-question editor and a submission flow (anonymous, host-visible, revealed, or
-labelled), and ranks every other gap worth closing. Nothing there is built. Two
-things from it are worth knowing before picking anything up:
-
-- The editor **reverses the "no question-authoring UI" non-goal**. That is a
-  deliberate decision, not an oversight — but the README still states the
-  non-goal, and the two should be reconciled in whichever commit starts the work.
-- The plan's own advice is to build none of it near the party.
+The submission flow from the plan — anonymous, host-visible, revealed or
+labelled attribution, with a CSV importer for the Google Form — is designed and
+not started. Its one engine dependency is per-item scoring exclusion, since
+`restrictTo` is per-round today.
 
 ## What not to build
 

@@ -17,7 +17,7 @@ entrants:
   - id: mum-dad
     displayName: 'Mum & Dad'
     avatar: /content/avatars/avatar-a.svg
-    members: [{ name: 'David' }, { name: 'Jennifer' }]
+    members: [ { name: 'David' }, { name: 'Jennifer' } ]
   - id: the-swans
     displayName: 'Team Swan'
     avatar: /content/avatars/avatar-b.svg
@@ -63,19 +63,11 @@ rounds:
     title: 'Just For Lucy'
     # Only Lucy can score here. Everyone else's tile greys out on the host view,
     # which is what stops a helpful adult from shouting the answer for a point.
-    restrictTo: [lucy]
+    restrictTo: [ lucy ]
     defaultPoints: 1
     items:
-      - prompt: 'How many grandchildren?'
-        # A cue plays when the display *lands on* an item whose audio differs
-        # from the last one played — not when you reveal, and not when you award
-        # a point. So this chime is doing one job: turning a room full of
-        # talking adults towards Lucy as her round starts. Run
-        # `node scripts/make-sounds.mjs` if content/assets/*.wav are missing.
-        media: { audio: assets/cue-correct.wav }
-        answer: 'Three — four in November!'
-      - prompt: 'What colour is Grandad’s car?'
-        answer: 'Green'
+      - prompt: 'What color is most common for Grandpa’s cars over the years?'
+        answer: 'Blue'
       - prompt: 'Who is the oldest person in this room?'
         answer: 'Great-Grandma Iris, and she will tell you so'
 
@@ -84,17 +76,17 @@ rounds:
     title: 'How Well Do You Know Them?'
     defaultPoints: 2
     items:
-      - prompt: 'Where did David and Jennifer meet?'
-        options: ['A bus stop', 'A wedding', 'A chemistry lab', 'A queue for chips']
+      - prompt: 'Where did David and Eleanor meet?'
+        options: [ 'A bus stop', 'A wedding', 'A chemistry lab', 'A queue for chips' ]
         correct: C
         answer: 'Second-year practical, 1983'
       - prompt: 'What was the first song at their wedding?'
-        options: ['Careless Whisper', 'True', 'Every Breath You Take', 'Wake Me Up Before You Go-Go']
+        options: [ 'Careless Whisper', 'True', 'Every Breath You Take', 'Wake Me Up Before You Go-Go' ]
         correct: B
       - prompt: 'How many houses have they lived in together?'
-        options: ['Three', 'Five', 'Seven', 'Nine']
-        correct: C
-        answer: 'Seven, and Dad has a story about each one'
+        options: [ 'Three', 'Five', 'Seven', 'Nine' ]
+        correct: B
+        answer: 'Five, and Dad has a story about each one'
 
   - id: charades
     type: manual
@@ -107,17 +99,17 @@ rounds:
       - prompt: 'Act it out: THE WEDDING PHOTO'
         note: 'Give this one to whoever gets the room laughing.'
       - prompt: 'Act it out: DAD’S DRIVING'
-      - prompt: 'Act it out: MUM ON THE PHONE'
+      - prompt: 'Act it out: MOM ON THE PHONE'
 
   - id: finale
     type: manual
     title: 'Last Points'
     defaultPoints: 5
     items:
-      - prompt: 'Best guess: how many cups of tea has Mum made in 40 years?'
+      - prompt: 'Best guess: how many cups of coffee has Mom made in 40 years?'
         answer: 'Nobody knows. Five points to the funniest number.'
       - prompt: 'Raise a glass.'
         # The one cue that has to be here. Two in a whole game is the right
         # number — a chime on every question is exhausting in a small room.
         media: { image: assets/wedding-1985.svg, audio: assets/cue-fanfare.wav }
-        answer: 'To David and Jennifer.'
+        answer: 'To David and Eleanor.'

@@ -119,6 +119,19 @@ try {
   const fixed = await display.next((s) => s.leaderboard.some((r) => r.id === target.id && r.score === 42), 'manual score');
   check('the host can always fix the score by hand', Boolean(fixed));
 
+  // A preview must reach the TV without becoming part of the game: the whole
+  // point is that the host can check a question on the real television without
+  // playing it.
+  const eventsBefore = (await (await fetch(`http://localhost:${PORT}/api/health`)).json()).events;
+  host.socket.emit('preview', { prompt: 'Is this readable from the sofa?', answer: 'It is.' });
+  const previewed = await display.next((s) => s.preview === true, 'preview on the TV');
+  check('a preview reaches the display', previewed.round.prompt === 'Is this readable from the sofa?');
+
+  host.socket.emit('preview', null);
+  await display.next((s) => !s.preview, 'preview cleared');
+  const eventsAfter = (await (await fetch(`http://localhost:${PORT}/api/health`)).json()).events;
+  check('a preview writes nothing to the session log', eventsAfter === eventsBefore);
+
   // A display socket must not be able to drive the game.
   await new Promise((resolve) => {
     display.socket.emit('dispatch', { type: 'AWARD_POINTS', entrantId: target.id, points: 100 }, (res) => {

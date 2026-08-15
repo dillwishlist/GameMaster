@@ -16,6 +16,7 @@ import chokidar from 'chokidar';
 import type { ClientRole, GameEventInput } from '../shared/events.js';
 import { ContentError, contentWarnings, loadContent, resolveContentFile, type GameContent } from './content.js';
 import { projectDisplay, projectHost, projectPlayer } from './game/projection.js';
+import { registerEditorRoutes } from './editor/routes.js';
 import { Session } from './session.js';
 import { printBanner } from './net.js';
 
@@ -58,6 +59,19 @@ let { session, resumed } = FRESH
 /** Set below, once `io` exists — appending seeds pushes state to nobody yet. */
 let unsubscribe: () => void = () => {};
 
+/**
+ * A preview the editor pushes to the TV.
+ *
+ * Deliberately *not* an event: rehearsing a question must not write to the
+ * session log or move a score. Declared up here with the rest of the module
+ * state, because anything a socket handler closes over has to exist before the
+ * module finishes evaluating — that has bitten this file twice.
+ *
+ * The display marks it as a preview, so one left up during the party is
+ * obvious rather than convincing.
+ */
+let preview: { prompt: string; answer?: string; media?: { image?: string; audio?: string } } | null = null;
+
 /* -------------------------------------------------------------------------- */
 /* HTTP                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -77,9 +91,22 @@ app.get('/api/health', (_req, res) => {
 // Content assets: images, audio, avatars. Read-only, served straight off disk.
 app.use('/content', express.static(CONTENT_DIR, { maxAge: '1h' }));
 
+/**
+ * The question editor. Gated the same way `/host` is: with no passphrase set
+ * this is a LAN-only tool on a home network, and with one set the editor sends
+ * it as a header. Registered before the SPA fallback so /api/* is never
+ * swallowed by index.html.
+ */
+registerEditorRoutes(app, {
+  contentFile,
+  contentDir: CONTENT_DIR,
+  isRoundInPlay: (roundId) => session.state.currentRoundId === roundId,
+  isAuthorised: (req) => !PASSPHRASE || req.header('x-gm-passphrase') === PASSPHRASE,
+});
+
 if (existsSync(CLIENT_DIR)) {
   app.use(express.static(CLIENT_DIR));
-  app.get(/^\/(host|display|play)(\/.*)?$/, (_req, res) => {
+  app.get(/^\/(host|display|play|edit)(\/.*)?$/, (_req, res) => {
     res.sendFile(path.join(CLIENT_DIR, 'index.html'));
   });
   app.get('/', (_req, res) => res.redirect('/host'));
@@ -191,6 +218,16 @@ io.on('connection', (socket: Socket) => {
     }),
   );
 
+  socket.on(
+    'preview',
+    guard('preview', (payload: typeof preview, ack?: (r: unknown) => void) => {
+      if (!requireHost(socket, ack)) return;
+      preview = payload && typeof payload.prompt === 'string' ? payload : null;
+      pushAll();
+      ack?.({ ok: true });
+    }),
+  );
+
   socket.on('disconnect', guard('disconnect', () => pushAll()));
 });
 
@@ -203,16 +240,35 @@ function requireHost(socket: Socket, ack?: (r: unknown) => void): boolean {
 function push(socket: Socket): void {
   const data = socket.data as SocketData;
   if (data.role === 'host') socket.emit('host', projectHost(session.state, content, env()));
-  else if (data.role === 'display') socket.emit('display', projectDisplay(session.state, content));
+  else if (data.role === 'display') socket.emit('display', withPreview(projectDisplay(session.state, content)));
   else socket.emit('player', projectPlayer(session.state, content, data.entrantId));
 }
 
 function pushAll(): void {
   io.to('host').emit('host', projectHost(session.state, content, env()));
-  io.to('display').emit('display', projectDisplay(session.state, content));
+  io.to('display').emit('display', withPreview(projectDisplay(session.state, content)));
   for (const socket of io.sockets.sockets.values()) {
     if ((socket.data as SocketData).role === 'player') push(socket);
   }
+}
+
+function withPreview(state: ReturnType<typeof projectDisplay>) {
+  if (!preview) return state;
+  return {
+    ...state,
+    preview: true,
+    roundTitle: 'Preview',
+    round: {
+      kind: 'manual' as const,
+      prompt: preview.prompt,
+      answer: preview.answer,
+      media: preview.media,
+      itemIndex: 0,
+      itemCount: 1,
+      // Always revealed: a preview exists so the host can read the whole thing.
+      revealed: true,
+    },
+  };
 }
 
 function env() {
