@@ -3,7 +3,7 @@
 Where the project actually is, what is safe to assume, and what to do next.
 Written so that work can stop at any moment and resume cleanly.
 
-Last updated: 2026-08-14.
+Last updated: 2026-08-15.
 
 ## Status
 
@@ -11,10 +11,18 @@ Last updated: 2026-08-14.
 open `/display` on the TV, open `/host` on the iPad, and play. Everything since
 Phase 0 is additive.
 
-- Branch: `claude/gamemaster-framework-spec-ocsy07`
-- PR: [#1](https://github.com/dillwishlist/GameMaster/pull/1) → `main`
-- `main` is an **empty root commit**, created only so the work had a base branch
-  to be reviewed against. The repository had no commits before this work.
+**Everything is on `main`.** Three pull requests are merged and no work is in
+flight:
+
+- [#1](https://github.com/dillwishlist/GameMaster/pull/1) — the engine, Phases 0
+  to 2, session replay, CI, and the fixes from three adversarial reviews
+- [#2](https://github.com/dillwishlist/GameMaster/pull/2) — the question editor
+  at `/edit`
+- [#3](https://github.com/dillwishlist/GameMaster/pull/3) — the submissions
+  importer
+
+`main` began as an empty root commit, created only so #1 had a base branch to be
+reviewed against; the repository had no commits before this work.
 
 Verify everything in one command:
 
@@ -38,7 +46,8 @@ npm run check      # typecheck + unit tests + end-to-end smoke test
 | Sound cues (synthesized, no downloads) | Done |
 | Session replay / export (`npm run replay`) | Done |
 | CI on Node 20 and 22 | Done |
-| Question editor at `/edit` | Done — on branch `claude/question-editor`, see [`EDITOR.md`](EDITOR.md) |
+| Question editor at `/edit` | Done — see [`EDITOR.md`](EDITOR.md) |
+| Form-export importer (`npm run import-submissions`) | Done — see [`SUBMISSIONS.md`](SUBMISSIONS.md) |
 | Player self-join, device submission | Not built — Phase 3, expected to be cut |
 | Extracted plugin SDK | Not built — Phase 3 |
 
@@ -243,10 +252,28 @@ Things learned building it, worth not rediscovering:
 
 ## Planned, not built
 
-The submission flow from the plan — anonymous, host-visible, revealed or
-labelled attribution, with a CSV importer for the Google Form — is designed and
-not started. Its one engine dependency is per-item scoring exclusion, since
-`restrictTo` is per-round today.
+**Submissions are half done.** The model and the CSV importer are in, with four
+attribution modes (`blind`, `host`, `reveal`, `public`) — see
+[`SUBMISSIONS.md`](SUBMISSIONS.md). Still missing:
+
+- A review queue in the editor, and "make a round from these". Turning a
+  submission into a question is copy-and-paste today.
+- **Per-item scoring exclusion**, which is the one engine change the rest
+  depends on: `restrictTo` is per *round*, and stopping a submitter scoring on
+  their own question needs it per *item*. That touches the plugin contract, so
+  it is a versioned change. The `entrantId` link on a submission is being
+  collected for exactly this and is unused until it exists.
+
+Note the deliberate limit: a `blind` submission can never exclude its author,
+because nothing knows who they are. That is the cost of real anonymity, not a
+gap to close.
+
+A ranked backlog of everything else — a run sheet and pacing clock for the MC, a
+proper final-scores screen, an interstitial photo slideshow, a blackout button,
+`npm run doctor` to make the run-day checklist executable — was discussed but not
+written down. The three highest-value items are the final-scores screen (it is
+the last thing anyone sees, and currently the weakest screen in the project), the
+doctor command, and the run sheet.
 
 ## What not to build
 
