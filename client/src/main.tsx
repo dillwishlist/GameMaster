@@ -25,6 +25,7 @@ function Chooser() {
       <h1>GameMaster</h1>
       <a href="/host">Host</a>
       <a href="/display">Display</a>
+      <a href="/edit">Edit</a>
     </div>
   );
 }
