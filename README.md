@@ -52,7 +52,10 @@ Then work down [`docs/RUNDAY.md`](docs/RUNDAY.md), which is not optional.
 
 Environment: `GM_PORT` (4000), `GM_CONTENT` (a specific content file),
 `GM_CONTENT_DIR` (`./content`), `GM_DATA_DIR` (`./data`), `GM_PASSPHRASE`
-(unset = no gate on `/host`). `npm start -- --fresh` ignores a resumable
+(unset = no gate on `/host`), `GM_PUBLIC_URL` (overrides the auto-detected LAN
+address in the banner, terminal QR and landing-page QR — set this to a base
+URL like `http://your-domain:4000` when running somewhere with no LAN to
+detect, e.g. a cloud box). `npm start -- --fresh` ignores a resumable
 session.
 
 ## What it does today

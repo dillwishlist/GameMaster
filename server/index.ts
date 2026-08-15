@@ -18,7 +18,7 @@ import { ContentError, contentWarnings, loadContent, resolveContentFile, type Ga
 import { projectDisplay, projectHost, projectPlayer } from './game/projection.js';
 import { registerEditorRoutes } from './editor/routes.js';
 import { Session } from './session.js';
-import { lanAddress, printBanner, qrSvg } from './net.js';
+import { hostBaseUrl, printBanner, qrSvg } from './net.js';
 
 /**
  * Last line of defence. A frozen screen is recoverable — the host reloads the
@@ -81,22 +81,22 @@ const http = createServer(app);
 const io = new SocketServer(http, { serveClient: false });
 
 app.get('/api/config', (_req, res) => {
-  const ip = lanAddress();
+  const base = hostBaseUrl(PORT);
   res.json({
     passphraseRequired: PASSPHRASE.length > 0,
-    // null off the LAN (e.g. wifi down) — same case the terminal banner handles.
-    lanHostUrl: ip ? `http://${ip}:${PORT}/host` : null,
+    // null with no LAN address and no GM_PUBLIC_URL — same case the terminal banner handles.
+    lanHostUrl: base ? `${base}/host` : null,
   });
 });
 
 /** The terminal QR code, rendered for a browser instead of stdout. */
 app.get('/api/qr', async (_req, res) => {
-  const ip = lanAddress();
-  if (!ip) {
-    res.status(404).json({ error: 'No LAN address found — wifi down?' });
+  const base = hostBaseUrl(PORT);
+  if (!base) {
+    res.status(404).json({ error: 'No LAN address found, and GM_PUBLIC_URL is unset — wifi down?' });
     return;
   }
-  res.type('image/svg+xml').send(await qrSvg(`http://${ip}:${PORT}/host`));
+  res.type('image/svg+xml').send(await qrSvg(`${base}/host`));
 });
 
 app.get('/api/health', (_req, res) => {
