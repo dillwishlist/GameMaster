@@ -48,6 +48,7 @@ Then work down [`docs/RUNDAY.md`](docs/RUNDAY.md), which is not optional.
 | `npm run typecheck` | Type-check the client and the server separately |
 | `npm run build` | Build the client bundle into `dist/client` |
 | `npm run replay` | Turn a finished session log into a readable transcript — see [`docs/AFTER-THE-PARTY.md`](docs/AFTER-THE-PARTY.md) |
+| `npm run import-submissions` | Turn a form export into questions — see [`docs/SUBMISSIONS.md`](docs/SUBMISSIONS.md) |
 
 Environment: `GM_PORT` (4000), `GM_CONTENT` (a specific content file),
 `GM_CONTENT_DIR` (`./content`), `GM_DATA_DIR` (`./data`), `GM_PASSPHRASE`
@@ -243,7 +244,8 @@ content, then rehearse on the actual television with a real second person.
 Content collection has human latency and it runs through five households. Baby
 photos, trivia submissions, the wedding photos for the display — all of it
 depends on other people answering a text message. **Send the form and the photo
-request today.** If it comes back full on day 6, no amount of Phase 2 saves you.
+request today**, then feed the export straight in with
+`npm run import-submissions` ([`docs/SUBMISSIONS.md`](docs/SUBMISSIONS.md)). If it comes back full on day 6, no amount of Phase 2 saves you.
 If it comes back full on day 2, even a bare Phase 0 makes a great game.
 
 ## Non-goals
